@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: arxm_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - chromadb_data:/app/chroma_db
+    env_file:
+      - .env
+    environment:
+      - CHROMA_DB_DIR=/app/chroma_db
+    restart: unless-stopped
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: arxm_frontend
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./frontend:/app
+    env_file:
+      - .env
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  chromadb_data:
