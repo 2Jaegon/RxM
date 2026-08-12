@@ -1,0 +1,1026 @@
+diff a/frontend/components/process_visualization.py b/frontend/components/process_visualization.py	(rejected hunks)
+@@ -371,21 +433,119 @@ def render_process_visualization():
+                 padding: 0.4rem;
+                 margin-bottom: 0.7rem;
+             }
++            #current-params-list {
++                display: grid;
++                grid-template-columns: 1fr 1fr;
++                gap: 0.4rem;
++            }
++            
++            .conn-search-item {
++                padding: 0.4rem 0.6rem;
++                border-bottom: 1px solid rgba(255,255,255,0.05);
++                display: flex;
++                justify-content: space-between;
++                align-items: center;
++                font-size: 0.7rem;
++                color: #E2E8F0;
++            }
++            .conn-search-item:last-child { border-bottom: none; }
++            .conn-search-item:hover { background: rgba(255,255,255,0.05); }
++            .conn-search-actions { display: flex; gap: 4px; }
++            .conn-search-action {
++                font-size: 0.55rem; padding: 0.2rem 0.4rem; border-radius: 4px; cursor: pointer;
++                border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #94A3B8; transition: all 0.15s;
++            }
++            .conn-search-action:hover { background: #34D399; color: #0F172A; border-color: #34D399; }
++            .conn-search-action.out:hover { background: #A855F7; color: #FFF; border-color: #A855F7; }
++
++            .tab-container {
++                display: flex;
++                gap: 10px;
++                margin-bottom: 1rem;
++                border-bottom: 1px solid rgba(255,255,255,0.1);
++                padding-bottom: 0.5rem;
++            }
++            .tab-btn {
++                background: none;
++                border: none;
++                color: #94A3B8;
++                font-size: 0.75rem;
++                cursor: pointer;
++                padding: 0.4rem 0.8rem;
++                border-radius: 4px;
++                transition: all 0.2s;
++            }
++            .tab-btn:hover {
++                background: rgba(255,255,255,0.05);
++            }
++            .tab-btn.active {
++                color: #34D399;
++                background: rgba(52, 211, 153, 0.1);
++                font-weight: 700;
++            }
++            .tab-content {
++                display: none;
++            }
++            .tab-content.active {
++                display: block;
++            }
++
++            .marquee-box {
++                position: absolute;
++                border: 1px dashed #34D399;
++                background: rgba(52, 211, 153, 0.15);
++                pointer-events: none;
++                z-index: 50;
++                display: none;
++            }
+ 
+             canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
++
++            /* Toast Notification */
++            .toast {
++                position: fixed;
++                bottom: 20px;
++                left: 50%;
++                transform: translateX(-50%);
++                background: rgba(16, 185, 129, 0.95);
++                color: white;
++                padding: 10px 20px;
++                border-radius: 8px;
++                font-size: 0.8rem;
++                font-weight: 600;
++                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
++                opacity: 0;
++                pointer-events: none;
++                transition: opacity 0.3s ease, transform 0.3s ease;
++                z-index: 1000;
++            }
++            .toast.show {
++                opacity: 1;
++                transform: translateX(-50%) translateY(-10px);
++            }
+         </style>
+     </head>
+     <body>
+         <!-- n8n Toolbar -->
+         <div class="n8n-toolbar">
+-            <div class="toolbar-title">
+-                ??FACTORY FLOW BUILDER
++            <div class="toolbar-title" id="breadcrumb-nav">
++                FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> Main Map
++            </div>
++            
++            <!-- Test Scenario Selector -->
++            <div style="display:flex; align-items:center; gap: 10px; margin-left: 20px; flex-grow: 1;">
++                <label style="font-size:0.75rem; color:#94A3B8;">?뚯뒪???쒕굹由ъ삤:</label>
++                <select id="test-case-selector" class="modal-input" onchange="applyTestCase(this.value)" style="width: 180px; padding: 0.2rem; background: rgba(15, 23, 42, 0.8); margin: 0;">
++                    <option value="">?곸슜 ?덊븿 (?섎룞 ?낅줈??</option>
++                    <option value="case1">Case 1: Normal</option>
++                    <option value="case2">Case 2: Global Cascade</option>
++                    <option value="case3">Case 3: Selective Cascade</option>
++                </select>
+             </div>
++
+             <div class="toolbar-actions">
+-                <button class="tb-btn" onclick="openAddNodeModal()">???λ퉬 異붽?</button>
+-                <button class="tb-btn" onclick="openEditModal()">?숋툘 ?뚮씪誘명꽣 / 遺???몄쭛</button>
+-                <button class="tb-btn danger" onclick="deleteSelectedNode()">?뿊截??λ퉬 ??젣</button>
+-                <button class="tb-btn" onclick="resetToDefaults()">?봽 珥덇린??/button>
++                <button class="tb-btn" id="btn-save" onclick="manualSave()" style="margin-right: 4px;">?꾩튂 ???/button>
++                <button class="tb-btn" id="btn-add-node" onclick="openAddNodeModal()">?λ퉬/怨듭옣 異붽?</button>
+             </div>
+         </div>
+ 
+@@ -394,23 +554,24 @@ def render_process_visualization():
+             <div class="factory-bg-grid"></div>
+             <div class="factory-badge">FACTORY AREA</div>
+ 
+-            <!-- Nodes Container -->
+-            <div id="nodes-container"></div>
+-
+-            <!-- Compact Central Hub -->
+-            <div class="central-hub">
+-                <div class="hub-label">HUB</div>
+-                
+-                <!-- Micro RAG Node (Top Knowledge Base) -->
+-                <div class="node-purple" id="node-rag" title="RAG 吏?앸쿋?댁뒪 DB">
+-                    <div class="micro-icon">?뱴</div>
+-                    <div class="micro-title">RAG</div>
+-                </div>
++            <!-- Zoom Wrapper for DOM Elements -->
++            <div id="zoom-wrapper" style="transform-origin: 0 0; width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10;">
++                <!-- Nodes Container (Restore pointer events) -->
++                <div id="nodes-container" style="pointer-events: auto;"></div>
+ 
+-                <!-- Micro AI Node (Bottom Intelligence Engine) -->
+-                <div class="node-red" id="node-ai" title="AI 泥섎갑 ?붿쭊">
+-                    <div class="micro-icon">?쭬</div>
+-                    <div class="micro-title">AI</div>
++                <!-- Compact Central Hub -->
++                <div class="central-hub" id="central-hub" style="pointer-events: auto; cursor: move;">
++                    <div class="hub-label">HUB</div>
++                    
++                    <!-- Micro RAG Node (Top Knowledge Base) -->
++                    <div class="node-purple" id="node-rag" title="RAG 吏?앸쿋?댁뒪 DB">
++                        <div class="micro-title">RAG</div>
++                    </div>
++
++                    <!-- Micro AI Node (Bottom Intelligence Engine) -->
++                    <div class="node-red" id="node-ai" title="AI 泥섎갑 ?붿쭊">
++                        <div class="micro-title">AI</div>
++                    </div>
+                 </div>
+             </div>
+ 
+@@ -421,18 +582,40 @@ def render_process_visualization():
+         <div class="modal-overlay" id="add-modal" onclick="closeModalOnOverlay(event, 'add-modal')">
+             <div class="modal-box">
+                 <div class="modal-header">
+-                    <div class="modal-title">???좉퇋 ?λ퉬 ?몃뱶 異붽?</div>
++                    <div class="modal-title" id="add-modal-title">???좉퇋 ?λ퉬 ?몃뱶 異붽?</div>
+                     <button class="modal-close-btn" onclick="closeModal('add-modal')">??/button>
+                 </div>
+-                <label style="font-size:0.7rem; color:#94A3B8;">?λ퉬 ?대쫫</label>
+-                <input class="modal-input" id="node-name-input" placeholder="?? ?앷컖?λ퉬_A, Vacuum_Pump_1" value="?앷컖?λ퉬_B">
+-                <label style="font-size:0.7rem; color:#94A3B8;">?λ퉬 ?꾩씠肄?/label>
+-                <select class="modal-input" id="node-icon-input">
+-                    <option value="?룺">?룺 ?앷컖?λ퉬</option>
+-                    <option value="??>??RF Matcher</option>
+-                    <option value="??">?? Vacuum Pump</option>
+-                    <option value="?럾截?>?럾截?Gas Controller</option>
+-                </select>
++                <label style="font-size:0.7rem; color:#94A3B8;" id="add-modal-name-label">?λ퉬 ?대쫫</label>
++                <input class="modal-input" id="node-name-input" placeholder="?대쫫???낅젰?섏꽭??>
++                
++                <div id="add-modal-extra-fields">
++                    <label style="font-size:0.7rem; color:#94A3B8;">8? 怨듭젙 (Tag)</label>
++                    <select class="modal-input" id="node-tag-input" style="cursor: pointer;">
++                        <option value="Fab">Fab (怨듭옣)</option>
++                        <option value="Etch">Etch</option>
++                        <option value="Litho">Litho</option>
++                        <option value="CVD">CVD</option>
++                        <option value="PVD">PVD</option>
++                        <option value="CMP">CMP</option>
++                        <option value="Implant">Implant</option>
++                        <option value="Wet Process">Wet Process</option>
++                        <option value="Wet Etch">Wet Etch</option>
++                        <option value="RTP">RTP</option>
++                        <option value="Epitaxy">Epitaxy</option>
++                        <option value="ECP">ECP</option>
++                        <option value="Material">Material</option>
++                        <option value="BEOL">BEOL</option>
++                        <option value="Passivation">Passivation</option>
++                        <option value="Test">Test</option>
++                    </select>
++                    <label style="font-size:0.7rem; color:#94A3B8;">?몃? 怨듭젙 (Process)</label>
++                    <input class="modal-input" id="node-process-input" placeholder="?? ICP, PVD">
++                    <label style="font-size:0.7rem; color:#94A3B8;">珥덇린 ?뚮씪誘명꽣 (?쇳몴濡?援щ텇)</label>
++                    <input class="modal-input" id="node-add-param-input" placeholder="?? Temperature, Pressure">
++                    <label style="font-size:0.7rem; color:#94A3B8;">珥덇린 ?섏쐞 遺??(?쇳몴濡?援щ텇)</label>
++                    <input class="modal-input" id="node-add-part-input" placeholder="?? Sensor A, Valve B">
++                </div>
++
+                 <div class="modal-actions">
+                     <button class="modal-btn-cancel" onclick="closeModal('add-modal')">痍⑥냼</button>
+                     <button class="modal-btn" onclick="confirmAddNode()">?앹꽦?섍린</button>
+@@ -444,97 +627,342 @@ def render_process_visualization():
+         <div class="modal-overlay" id="edit-modal" onclick="closeModalOnOverlay(event, 'edit-modal')">
+             <div class="modal-box">
+                 <div class="modal-header">
+-                    <div class="modal-title">?숋툘 ?뚮씪誘명꽣 & 遺???몄쭛</div>
++                    <div class="modal-title" id="modal-selected-name" style="color:#34D399; font-weight:700; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                     <button class="modal-close-btn" onclick="closeModal('edit-modal')">??/button>
+                 </div>
+-                <div id="modal-selected-name" style="font-size:0.75rem; color:#34D399; font-weight:700; margin-bottom:0.6rem;"></div>
+-                
+-                <label style="font-size:0.7rem; color:#94A3B8;">?꾩옱 ?뚮씪誘명꽣 紐⑸줉 (?대┃????젣)</label>
+-                <div class="current-items-list" id="current-params-list"></div>
++                <div style="display: flex; gap: 20px; width: 100%; height: 100%;" id="edit-modal-flex">
++                    
++                    <!-- Left Column (Sensor Data) -->
++                    <div id="edit-modal-left" style="flex: 1.5; display: flex; flex-direction: column; min-width: 450px;">
++                        <label style="font-size:0.75rem; color:#34D399; margin-bottom: 0.5rem; display: block; font-weight: bold;"> ?ㅼ떆媛??쇱꽌 ?곗씠??(CSV)</label>
++                        <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="padding: 0.2rem; cursor: pointer; color: #E2E8F0; font-size: 0.75rem;">
++                        <div id="sensor-chart-container" style="flex: 1; min-height: 380px; width: 100%; margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; position: relative;">
++                            <canvas id="sensorChart"></canvas>
++                        </div>
++                    </div>
++
++                    <!-- Right Column (Tabs & Info) -->
++                    <div id="edit-modal-right" style="flex: 1; display: flex; flex-direction: column; min-width: 320px;">
++                        <div class="tab-container" id="edit-tab-container">
++                            <button class="tab-btn active" id="tab-btn-info" onclick="switchEditTab('info')">湲곕낯 ?뺣낫</button>
++                            <button class="tab-btn" id="tab-btn-params" onclick="switchEditTab('params')">?뚮씪誘명꽣</button>
++                            <button class="tab-btn" id="tab-btn-parts" onclick="switchEditTab('parts')">?섏쐞 遺??/button>
++                        </div>
++
++                        <div id="fab-edit-content" style="display: none; padding-top: 0.5rem; padding-bottom: 0.5rem;">
++                            <label style="font-size:0.7rem; color:#94A3B8;">?대? ?λ퉬 紐⑸줉</label>
++                            <div class="current-items-list" id="fab-internal-nodes-list" style="min-height: 80px; max-height: 200px; margin-bottom: 10px;"></div>
++                        </div>
+ 
+-                <label style="font-size:0.7rem; color:#94A3B8;">異붽? ?뚮씪誘명꽣 (?? RF_Power: 1450W)</label>
+-                <input class="modal-input" id="param-input" placeholder="RF_Power: 1450W">
++                        <div class="tab-content active" id="tab-content-info" style="flex: 1;">
++                            <label style="font-size:0.7rem; color:#94A3B8;">8? 怨듭젙 (Tag)</label>
++                            <select class="modal-input" id="edit-tag-input" style="cursor: pointer;">
++                                <option value="Fab">Fab (怨듭옣)</option>
++                                <option value="Etch">Etch</option>
++                                <option value="Litho">Litho</option>
++                                <option value="CVD">CVD</option>
++                                <option value="PVD">PVD</option>
++                                <option value="CMP">CMP</option>
++                                <option value="Implant">Implant</option>
++                                <option value="Wet Process">Wet Process</option>
++                                <option value="Wet Etch">Wet Etch</option>
++                                <option value="RTP">RTP</option>
++                                <option value="Epitaxy">Epitaxy</option>
++                                <option value="ECP">ECP</option>
++                                <option value="Material">Material</option>
++                                <option value="BEOL">BEOL</option>
++                                <option value="Passivation">Passivation</option>
++                                <option value="Test">Test</option>
++                            </select>
++                            <label style="font-size:0.7rem; color:#94A3B8;">Address (二쇱냼)</label>
++                            <input class="modal-input" id="edit-address-input" placeholder="?? 01, 15 (?먮룞?쇰줈 step_媛 遺숈뒿?덈떎)">
++                            <label style="font-size:0.7rem; color:#94A3B8;">?몃? 怨듭젙 (Process)</label>
++                            <input class="modal-input" id="edit-process-input" placeholder="?? ICP, PVD">
++
++                            <div style="display: flex; gap: 10px; margin-top: 0.2rem;">
++                                <div style="flex: 1;">
++                                    <label style="font-size:0.65rem; color:#94A3B8;">?댁쟾 怨듭젙 (Previous)</label>
++                                    <div class="current-items-list" id="current-incoming-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
++                                </div>
++                                <div style="flex: 1;">
++                                    <label style="font-size:0.65rem; color:#94A3B8;">?댄썑 怨듭젙 (Next)</label>
++                                    <div class="current-items-list" id="current-outgoing-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
++                                </div>
++                            </div>
++
++                            <label style="font-size:0.65rem; color:#94A3B8; margin-top: 0.2rem; display: block;">?곌껐 ?λ퉬 寃??異붽?</label>
++                            <div style="position: relative; margin-bottom: 0.5rem;">
++                                <input class="modal-input" id="conn-search-input" placeholder="?곌껐???λ퉬 ?대쫫 寃??.." autocomplete="off" style="margin-bottom: 0;">
++                                <div id="conn-search-results" style="position: absolute; top: calc(100% + 2px); left: 0; width: 100%; background: #1E293B; border: 1px solid rgba(52, 211, 153, 0.4); border-radius: 6px; z-index: 50; max-height: 150px; overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
++                            </div>
++                        </div>
+ 
+-                <label style="font-size:0.7rem; color:#94A3B8;">?꾩옱 ?섏쐞 遺??紐⑸줉 (?대┃????젣)</label>
+-                <div class="current-items-list" id="current-parts-list"></div>
++                        <div class="tab-content" id="tab-content-params" style="flex: 1;">
++                            <label style="font-size:0.7rem; color:#94A3B8;">?꾩옱 ?뚮씪誘명꽣 紐⑸줉 (?대┃????젣)</label>
++                            <div class="current-items-list" id="current-params-list" style="max-height: 150px;"></div>
++                            <label style="font-size:0.7rem; color:#94A3B8;">異붽? ?뚮씪誘명꽣</label>
++                            <input class="modal-input" id="param-input" placeholder="?뚮씪誘명꽣 ?낅젰">
++                        </div>
+ 
+-                <label style="font-size:0.7rem; color:#94A3B8;">異붽? ?섏쐞 遺??(?? Plasma Chamber)</label>
+-                <input class="modal-input" id="part-input" placeholder="Plasma Chamber">
++                        <div class="tab-content" id="tab-content-parts" style="flex: 1;">
++                            <label style="font-size:0.7rem; color:#94A3B8;">?꾩옱 ?섏쐞 遺??紐⑸줉 (?대┃????젣)</label>
++                            <div class="current-items-list" id="current-parts-list" style="max-height: 150px;"></div>
++                            <label style="font-size:0.7rem; color:#94A3B8;">異붽? ?섏쐞 遺??/label>
++                            <input class="modal-input" id="part-input" placeholder="?섏쐞 遺???낅젰">
++                        </div>
+ 
++                        <div class="modal-actions" style="margin-top: auto; padding-top: 20px;">
++                            <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">痍⑥냼</button>
++                            <button class="modal-btn-cancel" style="color: #F87171; border-color: rgba(248, 113, 113, 0.4);" onclick="deleteNodeFromModal()">?뿊截???젣</button>
++                            <button class="modal-btn" onclick="confirmEditNode()">??ν븯湲?/button>
++                        </div>
++                    </div>
++                </div>
++            </div>
++        </div>
++
++        <!-- Confirm Modal -->
++        <div class="modal-overlay" id="confirm-modal" onclick="closeModalOnOverlay(event, 'confirm-modal')">
++            <div class="modal-box" style="width: 300px;">
++                <div class="modal-header">
++                    <div class="modal-title">?좑툘 ?뺤씤</div>
++                    <button class="modal-close-btn" onclick="closeModal('confirm-modal')">??/button>
++                </div>
++                <div id="confirm-modal-message" style="font-size:0.75rem; color:#E2E8F0; margin-bottom:1.5rem; margin-top:0.5rem; text-align:center;">?뺣쭚濡???젣?섏떆寃좎뒿?덇퉴?</div>
+                 <div class="modal-actions">
+-                    <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">痍⑥냼</button>
+-                    <button class="modal-btn" onclick="confirmEditNode()">??ν븯湲?/button>
++                    <button class="modal-btn-cancel" onclick="closeModal('confirm-modal')">痍⑥냼</button>
++                    <button class="modal-btn" style="background:#F87171; color:#450A0A;" onclick="executeConfirmAction()">?뺤씤</button>
+                 </div>
+             </div>
+         </div>
+ 
+         <script>
+-            const defaultNodes = [
+-                {
+-                    id: 'node-1',
+-                    name: '?앷컖?λ퉬_A',
+-                    icon: '?룺',
+-                    x: 35,
+-                    y: 70,
+-                    params: ['RF: 1,450W', 'Press: 45mTorr'],
+-                    parts: ['Chamber']
+-                },
+-                {
+-                    id: 'node-2',
+-                    name: 'Vacuum_Pump_1',
+-                    icon: '??',
+-                    x: 35,
+-                    y: 280,
+-                    params: ['RPM: 3,600'],
+-                    parts: ['Turbomolecular']
+-                },
+-                {
+-                    id: 'node-3',
+-                    name: 'RF_Matcher_A',
+-                    icon: '??,
+-                    x: 240,
+-                    y: 170,
+-                    params: ['Freq: 13.56MHz'],
+-                    parts: ['Capacitor']
+-                }
++            const preloadedDatasets = JSON.parse('""" + preloaded_datasets_json + """');
++            const cmosSteps = [
++                { name: "踰좎뼱 ?⑥씠??以鍮?, icon: "?뮸", tag: "Material", process: "Wafer Prep" },
++                { name: "?몄젙", icon: "?슼", tag: "Wet Process", process: "Cleaning" },
++                { name: "Pad 利앹갑", icon: "?곻툘", tag: "CVD", process: "Deposition" },
++                { name: "STI ?ы넗", icon: "?벝", tag: "Litho", process: "Photo" },
++                { name: "STI ?앷컖", icon: "??, tag: "Etch", process: "Etching" },
++                { name: "STI 媛?븘", icon: "?곻툘", tag: "CVD", process: "Gap Fill" },
++                { name: "STI ?됲깂??, icon: "?쪒", tag: "CMP", process: "Planarization" },
++                { name: "?몄젙", icon: "?슼", tag: "Wet Process", process: "Cleaning" },
++                { name: "N/P-Well 二쇱엯", icon: "?뵭", tag: "Implant", process: "Implantation" },
++                { name: "?쒖꽦???댁쿂由?, icon: "?뵦", tag: "RTP", process: "Thermal" },
++                { name: "?붾?寃뚯씠??利앹갑", icon: "?곻툘", tag: "CVD", process: "Deposition" },
++                { name: "?붾?寃뚯씠???앷컖", icon: "??, tag: "Etch", process: "Etching" },
++                { name: "LDD ?댁삩二쇱엯", icon: "?뵭", tag: "Implant", process: "Implantation" },
++                { name: "?ㅽ럹?댁꽌 ?앷컖", icon: "??, tag: "Etch", process: "Etching" },
++                { name: "S/D ?먰뵾?앹떆", icon: "?뙮", tag: "Epitaxy", process: "Deposition" },
++                { name: "怨좊냽??S/D 二쇱엯", icon: "?뵦", tag: "Implant", process: "Implantation" },
++                { name: "ILD0 利앹갑", icon: "?곻툘", tag: "CVD", process: "Deposition" },
++                { name: "ILD0 ?됲깂??, icon: "?쪒", tag: "CMP", process: "Planarization" },
++                { name: "?붾? ?대━ ?쒓굅", icon: "?뮛", tag: "Wet Etch", process: "Etching" },
++                { name: "湲덉냽 寃뚯씠??利앹갑", icon: "?뵮", tag: "CVD", process: "ALD" },
++                { name: "湲덉냽 ?됲깂??, icon: "?쪒", tag: "CMP", process: "Planarization" },
++                { name: "而⑦깮? ?ы넗", icon: "?벝", tag: "Litho", process: "Litho" },
++                { name: "而⑦깮? ?앷컖", icon: "??, tag: "Etch", process: "Etching" },
++                { name: "?대━?ъ씠???댁쿂由?, icon: "?뵦", tag: "RTP", process: "Thermal" },
++                { name: "而⑦깮 媛?븘", icon: "?쪒", tag: "CMP", process: "CVD/CMP" },
++                { name: "1痢?湲덉냽 ?덉뿰留?, icon: "?곻툘", tag: "CVD", process: "Deposition" },
++                { name: "?ㅻ쭏???ы넗", icon: "?벝", tag: "Litho", process: "Damascene Litho" },
++                { name: "?ㅻ쭏???앷컖", icon: "??, tag: "Etch", process: "Damascene Etch" },
++                { name: "Cu Barrier/Seed", icon: "?뵮", tag: "PVD", process: "Deposition" },
++                { name: "援щ━ ?꾪빐?꾧툑", icon: "?뵅", tag: "ECP", process: "Deposition" },
++                { name: "援щ━ ?됲깂??, icon: "?쪒", tag: "CMP", process: "Planarization" },
++                { name: "?곸쐞 諛곗꽑痢?諛섎났", icon: "?봽", tag: "BEOL", process: "Loop" },
++                { name: "蹂댄샇留?利앹갑", icon: "?썳截?, tag: "CVD", process: "Passivation" },
++                { name: "?⑤뱶 ?ㅽ뵂 ?앷컖", icon: "??, tag: "Etch", process: "Etching" },
++                { name: "移??뚯뒪??, icon: "??, tag: "Test", process: "EDS" }
+             ];
+ 
+-            const defaultConnections = [
+-                { from: 'node-1', to: 'node-3' },
+-                { from: 'node-2', to: 'node-3' }
+-            ];
+-
+-            function loadState() {
+-                try {
+-                    const savedNodes = localStorage.getItem('rxm_nodes_data');
+-                    const savedConns = localStorage.getItem('rxm_connections_data');
+-                    return {
+-                        nodes: savedNodes ? JSON.parse(savedNodes) : defaultNodes,
+-                        connections: savedConns ? JSON.parse(savedConns) : defaultConnections
+-                    };
+-                } catch(e) {
+-                    return { nodes: defaultNodes, connections: defaultConnections };
++            const defaultFabNodes = cmosSteps.map((step, index) => {
++                const cols = 7;
++                const row = Math.floor(index / cols);
++                const col = row % 2 === 0 ? (index % cols) : (cols - 1 - (index % cols));
++                
++                let params = [];
++                let parts = [];
++                const t = step.tag;
++                
++                if (t.includes('Wet Process') || t.includes('Wet Etch')) {
++                    params = ["?띾룄 (HF, SC-1/2 ??", "諛곗뒪 ?⑤룄", "DI 鍮꾩???, "Spin RPM", "怨듭젙 ?쒓컙"];
++                    parts = ["耳誘몄뺄 ?꾪꽣", "O-ring", "PTFE 諛곌?/諛몃툕", "?앹쁺 諛곗뒪", "?ㅽ? 泥?];
++                } else if (t.includes('RTP') || t.includes('Furnace')) {
++                    params = ["Zone ?⑤룄 ?꾨줈?뚯씪", "怨듭젙 媛???좊웾", "梨붾쾭 ?뺣젰", "怨듭젙 ?쒓컙"];
++                    parts = ["荑쇱툩 ?쒕툕", "?댁쟾?(TC)", "?덊꽣 ?섎━癒쇳듃", "?좊줈寃??⑦봽", "SiC 蹂댄듃"];
++                } else if (t.includes('Litho')) {
++                    params = ["?멸킅??(Dose)", "Focus Offset", "?ㅻ쾭?덉씠 ?ㅼ감", "媛먭킅???먭퍡/RPM", "Bake ?⑤룄"];
++                    parts = ["愿묒썝 ?⑦봽", "PR ?붿뒪?쒖뒪 ?몄쫹", "?뷀븰 ?꾪꽣", "WEE ?⑦봽"];
++                } else if (t.includes('Etch') || t.includes('Damascene')) {
++                    params = ["Source/Bias Power", "媛???쇳빀 鍮꾩쑉", "梨붾쾭 吏꾧났 ?뺣젰", "ESC ?쒕㈃ ?⑤룄", "?꾨㈃ He ?뺣젰"];
++                    parts = ["?ъ빱??留?, "?ㅼ썙?ㅻ뱶", "梨붾쾭 ?대꼍 ?쇱씠??, "?뺤쟾泥?ESC)", "TMP 遺??];
++                } else if (t.includes('CVD') || t.includes('ALD')) {
++                    params = ["?쒖뀎???⑤룄", "梨붾쾭 ?뺣젰", "?꾧뎄泥??좊웾/?쒓컙", "Purge 媛???좊웾", "RF ?뚯썙"];
++                    parts = ["?ㅼ썙?ㅻ뱶", "?쒖뀎??, "?꾧뎄泥?湲고솕湲?, "?ъ뼱?쇱씤 ?몃옪", "?щ┸ 諛몃툕 O-留?];
++                } else if (t.includes('PVD')) {
++                    params = ["DC ?뚯썙", "Ar 媛???좊웾", "梨붾쾭 怨좎쭊怨듬룄", "?먯꽍 ?뚯쟾 ?띾룄"];
++                    parts = ["Target (湲덉냽)", "Shield", "留덇렇?ㅽ듃濡??댁뀍釉붾━"];
++                } else if (t.includes('Implant')) {
++                    params = ["?꾩쫰??(Dose)", "媛???먮꼫吏 (keV)", "Beam Current", "Tilt/Twist 媛곷룄"];
++                    parts = ["?댁삩 ?뚯뒪 ?꾨씪硫섑듃", "怨좎쟾???좎옄", "?⑤윭?곗씠 而?, "吏덈웾 遺꾩꽍湲??щ┸"];
++                } else if (t.includes('CMP')) {
++                    params = ["?ㅻ뱶 ?ㅼ슫?ъ뒪", "?뚮옒???ㅻ뱶 RPM", "?щ윭由??좊웾/?⑤룄", "?몄젙 釉뚮윭???뺣젰"];
++                    parts = ["?곕쭏 ?⑤뱶", "?ㅼ씠?꾨が???붿뒪??, "由ы뀒?대떇 留?, "PVA 釉뚮윭??];
++                } else if (t.includes('ECP')) {
++                    params = ["?꾨쪟 諛??, "諛곗뒪 ?⑤룄", "?좉린 泥④????띾룄", "?꾧툑 ?쒓컙"];
++                    parts = ["?좊끂??援щ━??", "?꾧툑??誘몄꽭 ?꾪꽣", "由???];
++                } else {
++                    params = ["Status: Normal", "Process Time: Auto"];
++                    parts = ["Standard Unit"];
+                 }
++
++                let initX = 40 + col * 115;
++                let initY = 30 + row * 95;
++                let nodeW = 65, nodeH = 50;
++                let gridSize = 40, dotOffset = 20;
++                let targetCx = initX + nodeW / 2;
++                let targetCy = initY + nodeH / 2;
++                let snappedCx = Math.round((targetCx - dotOffset) / gridSize) * gridSize + dotOffset;
++                let snappedCy = Math.round((targetCy - dotOffset) / gridSize) * gridSize + dotOffset;
++
++                return {
++                    id: 'node-cmos-' + index,
++                    address: 'step_' + String(index + 1).padStart(2, '0'),
++                    name: step.name,
++                    icon: step.icon,
++                    tag: step.tag,
++                    process: step.process,
++                    x: snappedCx - nodeW / 2,
++                    y: snappedCy - nodeH / 2,
++                    params: params,
++                    parts: parts
++                };
++            });
++
++            const defaultFabConnections = [];
++            for (let i = 0; i < defaultFabNodes.length - 1; i++) {
++                defaultFabConnections.push({ from: defaultFabNodes[i].id, to: defaultFabNodes[i+1].id });
+             }
++            // Connect the last node to AI node
++            defaultFabConnections.push({ from: defaultFabNodes[defaultFabNodes.length - 1].id, to: 'node-ai' });
++
++            const defaultViews = {
++                'main': {
++                    nodes: [{
++                        id: 'fab-cmos',
++                        name: 'CMOS 怨듭젙 ??,
++                        icon: '?룺',
++                        x: Math.round(((window.innerWidth / 2 - 100) + 65/2 - 20) / 40) * 40 + 20 - 65/2,
++                        y: Math.round(((window.innerHeight / 2 - 50) + 50/2 - 20) / 40) * 40 + 20 - 50/2,
++                        params: ['Fab'],
++                        parts: []
++                    }],
++                    connections: [{ from: 'fab-cmos', to: 'node-ai' }]
++                },
++                'fab-cmos': {
++                    nodes: defaultFabNodes,
++                    connections: defaultFabConnections
++                }
++            };
++
++            let viewsData = JSON.parse(localStorage.getItem('rxm_views_data_v3')) || JSON.parse(JSON.stringify(defaultViews));
++            
++            // Backward compatibility migration: Move params[0] to tag if tag is not defined.
++            Object.values(viewsData).forEach(view => {
++                if (view.nodes) {
++                    view.nodes.forEach(node => {
++                        if (!node.tag && node.params && node.params.length > 0) {
++                            if (node.params[0] === 'Fab') {
++                                node.tag = 'Fab';
++                                node.params.shift();
++                            } else if (node.params[0] !== 'Status: OK') {
++                                node.tag = node.params[0];
++                                node.params.shift();
++                            }
++                        }
++                        // Migrate address if missing
++                        if (!node.address && node.id && node.id.startsWith('node-cmos-')) {
++                            const idxStr = node.id.replace('node-cmos-', '');
++                            const idx = parseInt(idxStr, 10);
++                            if (!isNaN(idx)) {
++                                node.address = 'step_' + String(idx + 1).padStart(2, '0');
++                            }
++                        }
++                    });
++                }
++            });
++            
++            let currentViewId = 'main';
+ 
+             function saveState() {
+                 try {
+-                    localStorage.setItem('rxm_nodes_data', JSON.stringify(nodesData));
+-                    localStorage.setItem('rxm_connections_data', JSON.stringify(connections));
++                    viewsData[currentViewId].nodes = nodesData;
++                    viewsData[currentViewId].connections = connections;
++                    localStorage.setItem('rxm_views_data_v3', JSON.stringify(viewsData));
+                 } catch(e) {}
+             }
+ 
+-            const state = loadState();
+-            let nodesData = state.nodes;
+-            let connections = state.connections;
++            let nodesData = viewsData[currentViewId].nodes;
++            let connections = viewsData[currentViewId].connections;
++
++            function navigateView(viewId) {
++                saveState();
++                currentViewId = viewId;
++                if (!viewsData[viewId]) {
++                    viewsData[viewId] = { nodes: [], connections: [] };
++                }
++                nodesData = viewsData[currentViewId].nodes;
++                connections = viewsData[currentViewId].connections;
++                selectedNodeId = null;
++                
++                zoom = 1; panX = 0; panY = 0;
++                updateTransform();
++                updateBreadcrumb();
++                renderNodes();
++            }
++
++            function updateBreadcrumb() {
++                const nav = document.getElementById('breadcrumb-nav');
++                const btnAdd = document.getElementById('btn-add-node');
++                if (!nav) return;
++                if (currentViewId === 'main') {
++                    nav.innerHTML = `FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> Main Map`;
++                    if (btnAdd) btnAdd.innerText = '?좉퇋 怨듭옣 異붽?';
++                } else {
++                    const fabNode = viewsData['main'].nodes.find(n => n.id === currentViewId) || {name: currentViewId};
++                    nav.innerHTML = `FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> <span style="cursor:pointer; color:#94A3B8; text-decoration:underline;" onclick="navigateView('main')">Main Map</span> <span style="margin: 0 8px; color:#64748B;">&gt;</span> <span style="color:#F8FAFC;">${fabNode.name}</span>`;
++                    if (btnAdd) btnAdd.innerText = '?좉퇋 ?λ퉬 異붽?';
++                }
++            }
++            updateBreadcrumb();
+ 
+             let selectedNodeId = nodesData.length > 0 ? nodesData[0].id : null;
++            let selectedNodeIds = new Set();
++            if (selectedNodeId) selectedNodeIds.add(selectedNodeId);
++            
+             let wiringStartNodeId = null;
+             let mouseX = 0, mouseY = 0;
++            let rawMouseX = -1000, rawMouseY = -1000;
++            
++            // Pan and Zoom states
++            let zoom = 1;
++            let panX = 0, panY = 0;
++            let isPanning = false;
++            let panStartX = 0, panStartY = 0;
++
++            // Marquee states
++            let isMarquee = false;
++            let marqueeStartX = 0;
++            let marqueeStartY = 0;
++            const marqueeEl = document.createElement('div');
++            marqueeEl.className = 'marquee-box';
+ 
+             const container = document.getElementById('nodes-container');
+             const canvas = document.getElementById('flowCanvas');
+             const ctx = canvas.getContext('2d');
++            
++            document.getElementById('zoom-wrapper').appendChild(marqueeEl);
+ 
+             function resizeCanvas() {
+                 const rect = document.getElementById('canvas-container').getBoundingClientRect();
+@@ -544,37 +972,231 @@ def render_process_visualization():
+             resizeCanvas();
+             window.addEventListener('resize', resizeCanvas);
+ 
++            function updateTransform() {
++                const zoomWrapper = document.getElementById('zoom-wrapper');
++                if (zoomWrapper) {
++                    zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
++                }
++                const bgGrid = document.querySelector('.factory-bg-grid');
++                if (bgGrid) {
++                    bgGrid.style.backgroundPosition = `${panX}px ${panY}px`;
++                    bgGrid.style.backgroundSize = `${40 * zoom}px ${40 * zoom}px`;
++                }
++            }
++
++            document.getElementById('canvas-container').addEventListener('contextmenu', e => {
++                if (e.target.id === 'canvas-container' || e.target.id === 'flowCanvas' || e.target.classList.contains('factory-bg-grid')) {
++                    e.preventDefault();
++                    
++                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
++                    const clickX = e.clientX - cRect.left;
++                    const clickY = e.clientY - cRect.top;
++                    
++                    let clickedConnection = -1;
++                    
++                    ctx.save();
++                    ctx.translate(panX, panY);
++                    ctx.scale(zoom, zoom);
++                    ctx.lineWidth = 15; // thick stroke for easier clicking
++                    
++                    for (let i = connections.length - 1; i >= 0; i--) {
++                        const c = connections[i];
++                        const srcNode = nodesData.find(n => n.id === c.from);
++                        if (!srcNode) continue;
++                        const srcElem = document.getElementById(c.from);
++                        let sx = srcNode.x + 75, sy = srcNode.y + 30;
++                        let dx, dy;
++                        if (srcElem) {
++                            const outPort = srcElem.querySelector('.port-socket');
++                            const wc = getWorldCoords(outPort);
++                            if (wc) { sx = wc.x; sy = wc.y; }
++                        }
++                        if (c.to === 'node-ai' || c.to === 'node-rag') {
++                            const dstElem = document.getElementById(c.to);
++                            const wc = getWorldCoords(dstElem);
++                            if (wc) { dx = wc.x; dy = wc.y; }
++                        } else {
++                            const dstNode = nodesData.find(n => n.id === c.to);
++                            if (!dstNode) continue;
++                            dx = dstNode.x; dy = dstNode.y + 35;
++                            const dstElem = document.getElementById(c.to);
++                            if (dstElem) {
++                                const inPort = dstElem.querySelector('.port-socket');
++                                const wc = getWorldCoords(inPort);
++                                if (wc) { dx = wc.x; dy = wc.y; }
++                            }
++                        }
++                        
++                        if (dx !== undefined && dy !== undefined) {
++                            ctx.beginPath();
++                            ctx.moveTo(sx, sy);
++                            const midX = (sx + dx) / 2;
++                            ctx.bezierCurveTo(midX, sy, midX, dy, dx, dy);
++                            if (ctx.isPointInStroke(clickX, clickY)) {
++                                clickedConnection = i;
++                                break;
++                            }
++                        }
++                    }
++                    ctx.restore();
++                    
++                    if (clickedConnection !== -1) {
++                        showConfirmModal('?좏깮?섏떊 ?곌껐?좎쓣 ??젣?섏떆寃좎뒿?덇퉴?', () => {
++                            connections.splice(clickedConnection, 1);
++                            saveState();
++                            renderNodes();
++                        });
++                    }
++                }
++            });
++
++            document.getElementById('canvas-container').addEventListener('mousedown', (e) => {
++                if (e.target.id === 'canvas-container' || e.target.id === 'flowCanvas' || e.target.classList.contains('factory-bg-grid')) {
++                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
++                    
++                    if (e.button === 0 && !e.ctrlKey && !e.metaKey) { // Left click
++                        isMarquee = true;
++                        marqueeStartX = ((e.clientX - cRect.left) - panX) / zoom;
++                        marqueeStartY = ((e.clientY - cRect.top) - panY) / zoom;
++                        marqueeEl.style.display = 'block';
++                        marqueeEl.style.left = marqueeStartX + 'px';
++                        marqueeEl.style.top = marqueeStartY + 'px';
++                        marqueeEl.style.width = '0px';
++                        marqueeEl.style.height = '0px';
++                        
++                        if (!e.shiftKey) {
++                            selectedNodeIds.clear();
++                            document.querySelectorAll('.n8n-node').forEach(n => n.classList.remove('selected'));
++                        }
++                    } else { // Right/Middle click
++                        isPanning = true;
++                        panStartX = (e.clientX - cRect.left) - panX;
++                        panStartY = (e.clientY - cRect.top) - panY;
++                    }
++                }
++            });
++
++            window.addEventListener('mouseup', () => {
++                isPanning = false;
++                if (isMarquee) {
++                    isMarquee = false;
++                    marqueeEl.style.display = 'none';
++                    if (selectedNodeIds.size === 1) {
++                        selectedNodeId = Array.from(selectedNodeIds)[0];
++                    } else if (selectedNodeIds.size === 0) {
++                        selectedNodeId = null;
++                    }
++                }
++            });
++
++            document.getElementById('canvas-container').addEventListener('wheel', (e) => {
++                e.preventDefault();
++                const zoomIntensity = 0.1;
++                const delta = e.deltaY < 0 ? 1 : -1;
++                const newZoom = Math.min(Math.max(0.2, zoom + delta * zoomIntensity), 3);
++                
++                const cRect = document.getElementById('canvas-container').getBoundingClientRect();
++                const rx = e.clientX - cRect.left;
++                const ry = e.clientY - cRect.top;
++                
++                panX = rx - (rx - panX) * (newZoom / zoom);
++                panY = ry - (ry - panY) * (newZoom / zoom);
++                zoom = newZoom;
++                
++                updateTransform();
++            }, { passive: false });
++
+             document.getElementById('canvas-container').addEventListener('mousemove', (e) => {
+                 const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+-                mouseX = e.clientX - cRect.left;
+-                mouseY = e.clientY - cRect.top;
++                const rx = e.clientX - cRect.left;
++                const ry = e.clientY - cRect.top;
++                
++                if (isPanning) {
++                    panX = rx - panStartX;
++                    panY = ry - panStartY;
++                    updateTransform();
++                } else if (isMarquee) {
++                    const currentX = (rx - panX) / zoom;
++                    const currentY = (ry - panY) / zoom;
++                    
++                    const left = Math.min(marqueeStartX, currentX);
++                    const top = Math.min(marqueeStartY, currentY);
++                    const width = Math.abs(currentX - marqueeStartX);
++                    const height = Math.abs(currentY - marqueeStartY);
++                    
++                    marqueeEl.style.left = left + 'px';
++                    marqueeEl.style.top = top + 'px';
++                    marqueeEl.style.width = width + 'px';
++                    marqueeEl.style.height = height + 'px';
++                    
++                    if (!e.shiftKey) selectedNodeIds.clear();
++                    nodesData.forEach(n => {
++                        if (n.x + 80 > left && n.x < left + width && n.y + 50 > top && n.y < top + height) {
++                            selectedNodeIds.add(n.id);
++                        }
++                    });
++                    
++                    document.querySelectorAll('.n8n-node').forEach(el => {
++                        if (selectedNodeIds.has(el.id)) el.classList.add('selected');
++                        else el.classList.remove('selected');
++                    });
++                }
++                
++                mouseX = (rx - panX) / zoom;
++                mouseY = (ry - panY) / zoom;
++                rawMouseX = rx;
++                rawMouseY = ry;
+             });
+ 
+             function renderNodes() {
+                 container.innerHTML = '';
++                
++                const centralHub = document.getElementById('central-hub');
++                if (centralHub) {
++                    if (viewsData[currentViewId].hubPos) {
++                        centralHub.style.left = viewsData[currentViewId].hubPos.x + 'px';
++                        centralHub.style.top = viewsData[currentViewId].hubPos.y + 'px';
++                    } else {
++                        centralHub.style.left = '880px';
++                        centralHub.style.top = '150px';
++                    }
++                }
++
+                 nodesData.forEach(node => {
+-                    const isSelected = node.id === selectedNodeId;
++                    const isSelected = selectedNodeIds.has(node.id);
+                     const elem = document.createElement('div');
+                     elem.className = `n8n-node ${isSelected ? 'selected' : ''}`;
+                     elem.id = node.id;
+                     elem.style.left = node.x + 'px';
+                     elem.style.top = node.y + 'px';
+ 
+-                    const paramsHTML = node.params.map((p, idx) => `<span class="param-tag">${p} <span class="tag-del" onclick="removeParam('${node.id}', ${idx})">??/span></span>`).join('');
+-                    const partsHTML = node.parts.map((pt, idx) => `<span class="part-tag">?뵩 ${pt} <span class="tag-del" onclick="removePart('${node.id}', ${idx})">??/span></span>`).join('');
++                    const tagHTML = node.tag ? `<div class="micro-tag" style="background:rgba(52,211,153,0.15); color:#34D399; margin-bottom:2px;">${node.tag}</div>` : '';
++                    const processHTML = node.process ? `<div class="micro-tag" style="background:rgba(168,85,247,0.15); color:#A855F7; margin-bottom:2px;">${node.process}</div>` : '';
+ 
+                     elem.innerHTML = `
+-                        <div class="port-socket port-in" data-nodeid="${node.id}" data-type="in" title="?낅젰 ?ы듃"></div>
+-                        <div class="n8n-node-header">
+-                            <div class="n8n-node-name"><span>${node.icon}</span> ${node.name}</div>
+-                            <span class="node-delete-icon" onclick="deleteNodeById('${node.id}')" title="??젣">??/span>
+-                        </div>
+-                        <div class="n8n-node-body">
+-                            <div>${paramsHTML}</div>
+-                            <div>${partsHTML}</div>
+-                        </div>
+-                        <div class="port-socket port-out" data-nodeid="${node.id}" data-type="out" title="異쒕젰 ?ы듃"></div>
++                        <div class="micro-box-name">${node.name}</div>
++                        ${tagHTML}
++                        ${processHTML}
++                        <div class="port-socket" data-nodeid="${node.id}" title="?곌껐 ?ъ씤??></div>
+                     `;
++                    
++                    if (node.isAnomalous) {
++                        elem.classList.add('anomalous');
++                    }
++
++                    elem.addEventListener('dblclick', (e) => {
++                        if (node.tag === 'Fab' || (node.params && node.params.includes('Fab'))) {
++                            navigateView(node.id);
++                        }
++                    });
++
++                    elem.addEventListener('contextmenu', (e) => {
++                        e.preventDefault();
++                        e.stopPropagation();
++                        
++                        selectedNodeId = node.id;
++                        openEditModal();
++                    });
+ 
+                     elem.addEventListener('mousedown', (e) => {
+                         if (e.target.classList.contains('tag-del') || e.target.classList.contains('node-delete-icon')) return;
+@@ -733,19 +1502,153 @@ def render_process_visualization():
+                 closeModal('add-modal');
+             }
+ 
++            function switchEditTab(tabName) {
++                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
++                document.querySelectorAll('.tab-content').forEach(tc => {
++                    tc.classList.remove('active');
++                    tc.style.display = '';
++                });
++                const tBtn = document.getElementById(`tab-btn-${tabName}`);
++                if (tBtn) tBtn.classList.add('active');
++                const tContent = document.getElementById(`tab-content-${tabName}`);
++                if (tContent) tContent.classList.add('active');
++            }
++
+             function openEditModal() {
+                 const node = nodesData.find(n => n.id === selectedNodeId);
+                 if (!node) {
+                     alert('?몄쭛???λ퉬 ?몃뱶瑜?癒쇱? ?좏깮?댁＜?몄슂.');
+                     return;
+                 }
+-                document.getElementById('modal-selected-name').innerText = `?좏깮???λ퉬: ${node.icon} ${node.name}`;
++                const titleEl = document.getElementById('modal-selected-name');
++                titleEl.innerHTML = `
++                    <span id="edit-node-name-text" style="cursor: pointer;" title="?붾툝?대┃?섏뿬 ?대쫫 ?섏젙">${node.name}</span>
++                    <input id="edit-node-name-input" type="text" style="display:none; font-size:0.9rem; font-weight:700; color:#34D399; padding:0; margin:0; width:150px; background:transparent; border:none; border-bottom:1px solid #34D399; outline:none;" value="${node.name}">
++                `;
++
++                const textSpan = document.getElementById('edit-node-name-text');
++                const nameInput = document.getElementById('edit-node-name-input');
++                
++                textSpan.addEventListener('dblclick', () => {
++                    textSpan.style.display = 'none';
++                    nameInput.style.display = 'inline-block';
++                    nameInput.focus();
++                });
++                
++                nameInput.addEventListener('blur', () => {
++                    if (nameInput.value.trim() !== '') {
++                        textSpan.innerText = nameInput.value;
++                    }
++                    nameInput.style.display = 'none';
++                    textSpan.style.display = 'inline-block';
++                });
++                
++                nameInput.addEventListener('keydown', (e) => {
++                    if (e.key === 'Enter') nameInput.blur();
++                });
++                
++                const tagInput = document.getElementById('edit-tag-input');
++                const tabContainer = document.getElementById('edit-tab-container');
++                const fabContent = document.getElementById('fab-edit-content');
++                
++                const modalBox = document.querySelector('#edit-modal .modal-box');
++                const leftCol = document.getElementById('edit-modal-left');
++                const rightCol = document.getElementById('edit-modal-right');
++                
++                if (currentViewId === 'main') {
++                    tagInput.value = 'Fab';
++                    tagInput.disabled = true;
++                    if (tabContainer) tabContainer.style.display = 'none';
++                    if (fabContent) fabContent.style.display = 'block';
++                    
++                    // Shrink modal for Fab view (hide sensor column)
++                    if (modalBox) modalBox.style.width = '400px';
++                    if (leftCol) leftCol.style.display = 'none';
++                    if (rightCol) rightCol.style.width = '100%';
++
++                    document.querySelectorAll('#edit-modal .tab-content').forEach(tc => {
++                        tc.classList.remove('active');
++                        tc.style.display = 'none';
++                    });
++                    
++                    const internalNodes = viewsData[node.id] && viewsData[node.id].nodes ? viewsData[node.id].nodes : [];
++                    const fabList = document.getElementById('fab-internal-nodes-list');
++                    if (fabList) {
++                        fabList.innerHTML = internalNodes.length > 0 
++                            ? internalNodes.map(n => `<div style="font-size: 0.75rem; color: #E2E8F0; padding: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;"><span>${n.name}</span><span style="color:#94A3B8; font-size:0.65rem;">${n.tag || ''}</span></div>`).join('')
++                            : '<div style="font-size:0.7rem; color:#94A3B8; padding: 10px; text-align:center;">?대????λ퉬媛 ?놁뒿?덈떎.</div>';
++                    }
++                } else {
++                    tagInput.value = node.tag || 'Etch';
++                    tagInput.disabled = false;
++                    if (tabContainer) tabContainer.style.display = 'flex';
++                    if (fabContent) fabContent.style.display = 'none';
++                    
++                    // Widen modal for Equipment view (show sensor column)
++                    if (modalBox) modalBox.style.width = '850px';
++                    if (leftCol) leftCol.style.display = 'flex';
++                    if (rightCol) rightCol.style.width = 'auto';
++
++                    document.querySelectorAll('#edit-modal .tab-content').forEach(tc => tc.style.display = '');
++                    switchEditTab('info');
++                    
++                    const uploadInput = document.getElementById('sensor-csv-upload');
++                    let badgeContainer = document.getElementById('test-case-active-badge');
++                    
++                    if (node.testCsvData) {
++                        if (uploadInput) uploadInput.style.display = 'none';
++                        if (!badgeContainer) {
++                            badgeContainer = document.createElement('div');
++                            badgeContainer.id = 'test-case-active-badge';
++                            badgeContainer.style.cssText = 'background: rgba(52, 211, 153, 0.2); border: 1px solid #34D399; color: #34D399; padding: 8px; border-radius: 6px; font-size: 0.8rem; text-align: center; margin-bottom: 10px; font-weight: 700;';
++                            badgeContainer.innerText = '???뚯뒪???쒕굹由ъ삤 ?먮룞 ?곕룞 以?;
++                            const leftContainer = document.getElementById('edit-modal-left');
++                            leftContainer.insertBefore(badgeContainer, document.getElementById('sensor-chart-container'));
++                        } else {
++                            badgeContainer.style.display = 'block';
++                        }
++                        
++                        setTimeout(() => startChartWithCSV(node.testCsvData), 100);
++                    } else {
++                        if (uploadInput) uploadInput.style.display = 'block';
++                        if (badgeContainer) badgeContainer.style.display = 'none';
++                        
++                        if (node.manualCsvData) {
++                            setTimeout(() => startChartWithCSV(node.manualCsvData), 100);
++                        }
++                    }
++                }
++                
++                let displayAddr = node.address || '';
++                if (displayAddr.startsWith('step_')) displayAddr = displayAddr.replace('step_', '');
++                document.getElementById('edit-address-input').value = displayAddr;
++                
++                document.getElementById('edit-process-input').value = node.process || '';
++                
++                const incList = document.getElementById('current-incoming-list');
++                const outList = document.getElementById('current-outgoing-list');
++                
++                const incConns = connections.filter(c => c.to === node.id);
++                const outConns = connections.filter(c => c.from === node.id);
++                
++                incList.innerHTML = incConns.map(c => {
++                    const fromNode = nodesData.find(n => n.id === c.from) || {name: c.from};
++                    return `<div class="conn-search-item"><span>${fromNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">??/span></div>`;
++                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">?댁쟾 怨듭젙 ?놁쓬</div>';
++                
++                outList.innerHTML = outConns.map(c => {
++                    const toNode = nodesData.find(n => n.id === c.to) || {name: c.to};
++                    return `<div class="conn-search-item"><span>${toNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">??/span></div>`;
++                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">?댄썑 怨듭젙 ?놁쓬</div>';
++                
++                document.getElementById('conn-search-input').value = '';
++                document.getElementById('conn-search-results').style.display = 'none';
+                 
+                 const pContainer = document.getElementById('current-params-list');
+                 pContainer.innerHTML = node.params.map((p, idx) => `<span class="param-tag">${p} <span class="tag-del" onclick="removeParamModal('${node.id}', ${idx})">??/span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">?깅줉???뚮씪誘명꽣 ?놁쓬</span>';
+ 
+                 const ptContainer = document.getElementById('current-parts-list');
+-                ptContainer.innerHTML = node.parts.map((pt, idx) => `<span class="part-tag">?뵩 ${pt} <span class="tag-del" onclick="removePartModal('${node.id}', ${idx})">??/span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">?깅줉???섏쐞 遺???놁쓬</span>';
++                ptContainer.innerHTML = node.parts.map((pt, idx) => `<span class="part-tag">${pt} <span class="tag-del" onclick="removePartModal('${node.id}', ${idx})">??/span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">?깅줉???섏쐞 遺???놁쓬</span>';
+ 
+                 document.getElementById('param-input').value = '';
+                 document.getElementById('part-input').value = '';

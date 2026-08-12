@@ -1,56 +1,9 @@
-import streamlit as st
-import streamlit.components.v1 as components
-import time
-import os
-import json
 
-
-def render_process_visualization():
-    # Load all dataset CSVs into a dict
-    base_dir = r"c:\Users\aicam\Documents\RxM"
-    dataset_dirs = {
-        'case1': 'dataset_case1_normal',
-        'case2': 'dataset_case2_global_cascade',
-        'case3': 'dataset_case3_selective_cascade'
-    }
-    
-    preloaded_datasets = {}
-    for case_name, folder_name in dataset_dirs.items():
-        folder_path = os.path.join(base_dir, folder_name)
-        preloaded_datasets[case_name] = {}
-        if os.path.exists(folder_path):
-            for filename in os.listdir(folder_path):
-                if filename.endswith(".csv"):
-                    file_path = os.path.join(folder_path, filename)
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            content = f.read()
-                            lines = content.split('\n')
-                            if len(lines) > 1 and lines[1].strip():
-                                cols = lines[1].split(',')
-                                if len(cols) > 2:
-                                    step_id = cols[1].strip()
-                                    step_name = cols[2].strip()
-                                    step_name_space = step_name.replace("_", " ")
-                                    preloaded_datasets[case_name][step_id] = content
-                                    preloaded_datasets[case_name][step_name] = content
-                                    preloaded_datasets[case_name][step_name_space] = content
-                    except Exception as e:
-                        pass
-                        
-    # Convert to JSON and safely escape backslashes and single quotes to prevent breaking JS literal
-    preloaded_datasets_json = json.dumps(preloaded_datasets).replace('\\', '\\\\').replace("'", "\\'")
-
-    # Corrected Data Topology:
-    # 1. Factory Equipments -> AI Node (Red Circle)
-    # 2. RAG Vector DB -> AI Node (Red Circle)
-    # 3. AI Node -> Factory Equipment (Prescriptive Feedback)
-    html_code = """
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="utf-8">
-        <!-- Cache Bust: """ + str(time.time()) + """ -->
+        <!-- Cache Bust: 1786508612.6861205 -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
@@ -250,21 +203,10 @@ def render_process_visualization():
             .n8n-node:hover {
                 border-color: #34D399;
                 box-shadow: 0 6px 20px rgba(52, 211, 153, 0.2);
-                transform: translateY(-2px);
             }
             .n8n-node.selected {
-                border-color: #3B82F6;
-                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
-            }
-            .n8n-node.anomalous {
-                border-color: #EF4444 !important;
-                box-shadow: 0 0 20px rgba(239, 68, 68, 0.8) !important;
-                animation: pulse-red 1.5s infinite;
-            }
-            @keyframes pulse-red {
-                0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
-                50% { box-shadow: 0 0 30px rgba(239, 68, 68, 1); }
-                100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
+                border-color: #F5D996;
+                box-shadow: 0 0 14px rgba(245, 217, 150, 0.5);
             }
 
             .micro-box-icon {
@@ -526,18 +468,6 @@ def render_process_visualization():
             <div class="toolbar-title" id="breadcrumb-nav">
                 FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> Main Map
             </div>
-            
-            <!-- Test Scenario Selector -->
-            <div style="display:flex; align-items:center; gap: 10px; margin-left: 20px; flex-grow: 1;">
-                <label style="font-size:0.75rem; color:#94A3B8;">테스트 시나리오:</label>
-                <select id="test-case-selector" class="modal-input" onchange="applyTestCase(this.value)" style="width: 180px; padding: 0.2rem; background: rgba(15, 23, 42, 0.8); margin: 0;">
-                    <option value="">적용 안함 (수동 업로드)</option>
-                    <option value="case1">Case 1: Normal</option>
-                    <option value="case2">Case 2: Global Cascade</option>
-                    <option value="case3">Case 3: Selective Cascade</option>
-                </select>
-            </div>
-
             <div class="toolbar-actions">
                 <button class="tb-btn" id="btn-save" onclick="manualSave()" style="margin-right: 4px;">위치 저장</button>
                 <button class="tb-btn" id="btn-add-node" onclick="openAddNodeModal()">장비/공장 추가</button>
@@ -625,93 +555,86 @@ def render_process_visualization():
                     <div class="modal-title" id="modal-selected-name" style="color:#34D399; font-weight:700; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
                     <button class="modal-close-btn" onclick="closeModal('edit-modal')">✕</button>
                 </div>
-                <div style="display: flex; gap: 20px; width: 100%; flex: 1; overflow: hidden;" id="edit-modal-flex">
-                    
-                    <!-- Left Column (Sensor Data) -->
-                    <div id="edit-modal-left" style="flex: 1.5; display: flex; flex-direction: column; min-width: 450px;">
-                        <label style="font-size:0.75rem; color:#34D399; margin-bottom: 0.5rem; display: block; font-weight: bold;"> 실시간 센서 데이터 (CSV)</label>
-                        <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="padding: 0.2rem; cursor: pointer; color: #E2E8F0; font-size: 0.75rem;">
-                        <div id="sensor-chart-container" style="flex: 1; min-height: 380px; width: 100%; margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; position: relative;">
-                            <canvas id="sensorChart"></canvas>
+                
+                <div class="tab-container" id="edit-tab-container">
+                    <button class="tab-btn active" id="tab-btn-sensor" onclick="switchEditTab('sensor')">센서 데이터</button>
+                    <button class="tab-btn" id="tab-btn-info" onclick="switchEditTab('info')">기본 정보</button>
+                    <button class="tab-btn" id="tab-btn-params" onclick="switchEditTab('params')">파라미터</button>
+                    <button class="tab-btn" id="tab-btn-parts" onclick="switchEditTab('parts')">하위 부품</button>
+                </div>
+
+                <div id="fab-edit-content" style="display: none; padding-top: 0.5rem; padding-bottom: 0.5rem;">
+                    <label style="font-size:0.7rem; color:#94A3B8;">내부 장비 목록</label>
+                    <div class="current-items-list" id="fab-internal-nodes-list" style="min-height: 80px; max-height: 200px; margin-bottom: 10px;"></div>
+                </div>
+
+                <div class="tab-content active" id="tab-content-sensor">
+                    <label style="font-size:0.7rem; color:#94A3B8;">장비 센서 데이터 연결 (CSV)</label>
+                    <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="padding: 0.2rem; cursor: pointer; color: #E2E8F0; font-size: 0.75rem;">
+                    <div id="sensor-chart-container" style="width: 100%; height: 200px; margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 5px; position: relative;">
+                        <canvas id="sensorChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-content-info">
+                    <label style="font-size:0.7rem; color:#94A3B8;">8대 공정 (Tag)</label>
+                    <select class="modal-input" id="edit-tag-input" style="cursor: pointer;">
+                        <option value="Fab">Fab (공장)</option>
+                        <option value="Etch">Etch</option>
+                        <option value="Litho">Litho</option>
+                        <option value="CVD">CVD</option>
+                        <option value="PVD">PVD</option>
+                        <option value="CMP">CMP</option>
+                        <option value="Implant">Implant</option>
+                        <option value="Wet Process">Wet Process</option>
+                        <option value="Wet Etch">Wet Etch</option>
+                        <option value="RTP">RTP</option>
+                        <option value="Epitaxy">Epitaxy</option>
+                        <option value="ECP">ECP</option>
+                        <option value="Material">Material</option>
+                        <option value="BEOL">BEOL</option>
+                        <option value="Passivation">Passivation</option>
+                        <option value="Test">Test</option>
+                    </select>
+                    <label style="font-size:0.7rem; color:#94A3B8;">세부 공정 (Process)</label>
+                    <input class="modal-input" id="edit-process-input" placeholder="예: ICP, PVD">
+
+                    <div style="display: flex; gap: 10px; margin-top: 0.2rem;">
+                        <div style="flex: 1;">
+                            <label style="font-size:0.65rem; color:#94A3B8;">수신 (Incoming)</label>
+                            <div class="current-items-list" id="current-incoming-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size:0.65rem; color:#94A3B8;">송신 (Outgoing)</label>
+                            <div class="current-items-list" id="current-outgoing-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
                         </div>
                     </div>
 
-                    <!-- Right Column (Tabs & Info) -->
-                    <div id="edit-modal-right" style="flex: 1; display: flex; flex-direction: column; min-width: 320px;">
-                        <div class="tab-container" id="edit-tab-container">
-                            <button class="tab-btn active" id="tab-btn-info" onclick="switchEditTab('info')">기본 정보</button>
-                            <button class="tab-btn" id="tab-btn-params" onclick="switchEditTab('params')">파라미터</button>
-                            <button class="tab-btn" id="tab-btn-parts" onclick="switchEditTab('parts')">하위 부품</button>
-                        </div>
-
-                        <div id="fab-edit-content" style="display: none; padding-top: 0.5rem; padding-bottom: 0.5rem;">
-                            <label style="font-size:0.7rem; color:#94A3B8;">내부 장비 목록</label>
-                            <div class="current-items-list" id="fab-internal-nodes-list" style="min-height: 80px; max-height: 200px; margin-bottom: 10px;"></div>
-                        </div>
-
-                        <div class="tab-content active" id="tab-content-info" style="flex: 1;">
-                            <label style="font-size:0.7rem; color:#94A3B8;">8대 공정 (Tag)</label>
-                            <select class="modal-input" id="edit-tag-input" style="cursor: pointer;">
-                                <option value="Fab">Fab (공장)</option>
-                                <option value="Etch">Etch</option>
-                                <option value="Litho">Litho</option>
-                                <option value="CVD">CVD</option>
-                                <option value="PVD">PVD</option>
-                                <option value="CMP">CMP</option>
-                                <option value="Implant">Implant</option>
-                                <option value="Wet Process">Wet Process</option>
-                                <option value="Wet Etch">Wet Etch</option>
-                                <option value="RTP">RTP</option>
-                                <option value="Epitaxy">Epitaxy</option>
-                                <option value="ECP">ECP</option>
-                                <option value="Material">Material</option>
-                                <option value="BEOL">BEOL</option>
-                                <option value="Passivation">Passivation</option>
-                                <option value="Test">Test</option>
-                            </select>
-                            <label style="font-size:0.7rem; color:#94A3B8;">Address (주소)</label>
-                            <input class="modal-input" id="edit-address-input" placeholder="예: 01, 15 (자동으로 step_가 붙습니다)">
-                            <label style="font-size:0.7rem; color:#94A3B8;">세부 공정 (Process)</label>
-                            <input class="modal-input" id="edit-process-input" placeholder="예: ICP, PVD">
-
-                            <div style="display: flex; gap: 10px; margin-top: 0.2rem;">
-                                <div style="flex: 1;">
-                                    <label style="font-size:0.65rem; color:#94A3B8;">이전 공정 (Previous)</label>
-                                    <div class="current-items-list" id="current-incoming-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label style="font-size:0.65rem; color:#94A3B8;">이후 공정 (Next)</label>
-                                    <div class="current-items-list" id="current-outgoing-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
-                                </div>
-                            </div>
-
-                            <label style="font-size:0.65rem; color:#94A3B8; margin-top: 0.2rem; display: block;">연결 장비 검색 추가</label>
-                            <div style="position: relative; margin-bottom: 0.5rem;">
-                                <input class="modal-input" id="conn-search-input" placeholder="연결할 장비 이름 검색..." autocomplete="off" style="margin-bottom: 0;">
-                                <div id="conn-search-results" style="position: absolute; top: calc(100% + 2px); left: 0; width: 100%; background: #1E293B; border: 1px solid rgba(52, 211, 153, 0.4); border-radius: 6px; z-index: 50; max-height: 150px; overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
-                            </div>
-                        </div>
-
-                        <div class="tab-content" id="tab-content-params" style="flex: 1;">
-                            <label style="font-size:0.7rem; color:#94A3B8;">현재 파라미터 목록 (클릭시 삭제)</label>
-                            <div class="current-items-list" id="current-params-list" style="max-height: 150px;"></div>
-                            <label style="font-size:0.7rem; color:#94A3B8;">추가 파라미터</label>
-                            <input class="modal-input" id="param-input" placeholder="파라미터 입력">
-                        </div>
-
-                        <div class="tab-content" id="tab-content-parts" style="flex: 1;">
-                            <label style="font-size:0.7rem; color:#94A3B8;">현재 하위 부품 목록 (클릭시 삭제)</label>
-                            <div class="current-items-list" id="current-parts-list" style="max-height: 150px;"></div>
-                            <label style="font-size:0.7rem; color:#94A3B8;">추가 하위 부품</label>
-                            <input class="modal-input" id="part-input" placeholder="하위 부품 입력">
-                        </div>
-
-                        <div class="modal-actions" style="margin-top: auto; padding-top: 20px;">
-                            <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">취소</button>
-                            <button class="modal-btn-cancel" style="color: #F87171; border-color: rgba(248, 113, 113, 0.4);" onclick="deleteNodeFromModal()">🗑️ 삭제</button>
-                            <button class="modal-btn" onclick="confirmEditNode()">저장하기</button>
-                        </div>
+                    <label style="font-size:0.65rem; color:#94A3B8; margin-top: 0.2rem; display: block;">연결 장비 검색 추가</label>
+                    <div style="position: relative; margin-bottom: 0.5rem;">
+                        <input class="modal-input" id="conn-search-input" placeholder="연결할 장비 이름 검색..." autocomplete="off" style="margin-bottom: 0;">
+                        <div id="conn-search-results" style="position: absolute; top: calc(100% + 2px); left: 0; width: 100%; background: #1E293B; border: 1px solid rgba(52, 211, 153, 0.4); border-radius: 6px; z-index: 50; max-height: 150px; overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
                     </div>
+                </div>
+
+                <div class="tab-content active" id="tab-content-params">
+                    <label style="font-size:0.7rem; color:#94A3B8;">현재 파라미터 목록 (클릭시 삭제)</label>
+                    <div class="current-items-list" id="current-params-list"></div>
+                    <label style="font-size:0.7rem; color:#94A3B8;">추가 파라미터</label>
+                    <input class="modal-input" id="param-input" placeholder="파라미터 입력">
+                </div>
+
+                <div class="tab-content" id="tab-content-parts">
+                    <label style="font-size:0.7rem; color:#94A3B8;">현재 하위 부품 목록 (클릭시 삭제)</label>
+                    <div class="current-items-list" id="current-parts-list"></div>
+                    <label style="font-size:0.7rem; color:#94A3B8;">추가 하위 부품</label>
+                    <input class="modal-input" id="part-input" placeholder="하위 부품 입력">
+                </div>
+
+                <div class="modal-actions">
+                    <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">취소</button>
+                    <button class="modal-btn-cancel" style="color: #F87171; border-color: rgba(248, 113, 113, 0.4);" onclick="deleteNodeFromModal()">🗑️ 삭제</button>
+                    <button class="modal-btn" onclick="confirmEditNode()">저장하기</button>
                 </div>
             </div>
         </div>
@@ -732,7 +655,6 @@ def render_process_visualization():
         </div>
 
         <script>
-            const preloadedDatasets = JSON.parse('""" + preloaded_datasets_json + """');
             const cmosSteps = [
                 { name: "베어 웨이퍼 준비", icon: "💿", tag: "Material", process: "Wafer Prep" },
                 { name: "세정", icon: "🚿", tag: "Wet Process", process: "Cleaning" },
@@ -823,7 +745,6 @@ def render_process_visualization():
 
                 return {
                     id: 'node-cmos-' + index,
-                    address: 'step_' + String(index + 1).padStart(2, '0'),
                     name: step.name,
                     icon: step.icon,
                     tag: step.tag,
@@ -874,14 +795,6 @@ def render_process_visualization():
                             } else if (node.params[0] !== 'Status: OK') {
                                 node.tag = node.params[0];
                                 node.params.shift();
-                            }
-                        }
-                        // Migrate address if missing
-                        if (!node.address && node.id && node.id.startsWith('node-cmos-')) {
-                            const idxStr = node.id.replace('node-cmos-', '');
-                            const idx = parseInt(idxStr, 10);
-                            if (!isNaN(idx)) {
-                                node.address = 'step_' + String(idx + 1).padStart(2, '0');
                             }
                         }
                     });
@@ -1174,10 +1087,6 @@ def render_process_visualization():
                         ${processHTML}
                         <div class="port-socket" data-nodeid="${node.id}" title="연결 포인트"></div>
                     `;
-                    
-                    if (node.isAnomalous) {
-                        elem.classList.add('anomalous');
-                    }
 
                     elem.addEventListener('dblclick', (e) => {
                         if (node.tag === 'Fab' || (node.params && node.params.includes('Fab'))) {
@@ -1546,21 +1455,11 @@ def render_process_visualization():
                 const tabContainer = document.getElementById('edit-tab-container');
                 const fabContent = document.getElementById('fab-edit-content');
                 
-                const modalBox = document.querySelector('#edit-modal .modal-box');
-                const leftCol = document.getElementById('edit-modal-left');
-                const rightCol = document.getElementById('edit-modal-right');
-                
                 if (currentViewId === 'main') {
                     tagInput.value = 'Fab';
                     tagInput.disabled = true;
                     if (tabContainer) tabContainer.style.display = 'none';
                     if (fabContent) fabContent.style.display = 'block';
-                    
-                    // Shrink modal for Fab view (hide sensor column)
-                    if (modalBox) modalBox.style.width = '400px';
-                    if (leftCol) leftCol.style.display = 'none';
-                    if (rightCol) rightCol.style.width = '100%';
-
                     document.querySelectorAll('#edit-modal .tab-content').forEach(tc => {
                         tc.classList.remove('active');
                         tc.style.display = 'none';
@@ -1578,52 +1477,9 @@ def render_process_visualization():
                     tagInput.disabled = false;
                     if (tabContainer) tabContainer.style.display = 'flex';
                     if (fabContent) fabContent.style.display = 'none';
-                    
-                    // Widen modal for Equipment view (show sensor column)
-                    if (modalBox) {
-                        modalBox.style.width = '850px';
-                        modalBox.style.height = Math.min(window.innerHeight * 0.88, 680) + 'px';
-                        modalBox.style.display = 'flex';
-                        modalBox.style.flexDirection = 'column';
-                        modalBox.style.overflow = 'hidden';
-                    }
-                    if (leftCol) leftCol.style.display = 'flex';
-                    if (rightCol) rightCol.style.width = 'auto';
-
-
                     document.querySelectorAll('#edit-modal .tab-content').forEach(tc => tc.style.display = '');
-                    switchEditTab('info');
-                    
-                    const uploadInput = document.getElementById('sensor-csv-upload');
-                    let badgeContainer = document.getElementById('test-case-active-badge');
-                    
-                    if (node.testCsvData) {
-                        if (uploadInput) uploadInput.style.display = 'none';
-                        if (!badgeContainer) {
-                            badgeContainer = document.createElement('div');
-                            badgeContainer.id = 'test-case-active-badge';
-                            badgeContainer.style.cssText = 'background: rgba(52, 211, 153, 0.2); border: 1px solid #34D399; color: #34D399; padding: 8px; border-radius: 6px; font-size: 0.8rem; text-align: center; margin-bottom: 10px; font-weight: 700;';
-                            badgeContainer.innerText = '✅ 테스트 시나리오 자동 연동 중';
-                            const leftContainer = document.getElementById('edit-modal-left');
-                            leftContainer.insertBefore(badgeContainer, document.getElementById('sensor-chart-container'));
-                        } else {
-                            badgeContainer.style.display = 'block';
-                        }
-                        
-                        setTimeout(() => startChartWithCSV(node.testCsvData), 100);
-                    } else {
-                        if (uploadInput) uploadInput.style.display = 'block';
-                        if (badgeContainer) badgeContainer.style.display = 'none';
-                        
-                        if (node.manualCsvData) {
-                            setTimeout(() => startChartWithCSV(node.manualCsvData), 100);
-                        }
-                    }
+                    switchEditTab('sensor');
                 }
-                
-                let displayAddr = node.address || '';
-                if (displayAddr.startsWith('step_')) displayAddr = displayAddr.replace('step_', '');
-                document.getElementById('edit-address-input').value = displayAddr;
                 
                 document.getElementById('edit-process-input').value = node.process || '';
                 
@@ -1636,12 +1492,12 @@ def render_process_visualization():
                 incList.innerHTML = incConns.map(c => {
                     const fromNode = nodesData.find(n => n.id === c.from) || {name: c.from};
                     return `<div class="conn-search-item"><span>${fromNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">✕</span></div>`;
-                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">이전 공정 없음</div>';
+                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">수신 없음</div>';
                 
                 outList.innerHTML = outConns.map(c => {
                     const toNode = nodesData.find(n => n.id === c.to) || {name: c.to};
                     return `<div class="conn-search-item"><span>${toNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">✕</span></div>`;
-                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">이후 공정 없음</div>';
+                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">송신 없음</div>';
                 
                 document.getElementById('conn-search-input').value = '';
                 document.getElementById('conn-search-results').style.display = 'none';
@@ -1701,8 +1557,8 @@ def render_process_visualization():
                         <div class="conn-search-item">
                             <span>${m.name}</span>
                             <div class="conn-search-actions">
-                                <button class="conn-search-action" onclick="addConnModal('${m.id}', '${selectedNodeId}')">이전 공정 추가</button>
-                                <button class="conn-search-action out" onclick="addConnModal('${selectedNodeId}', '${m.id}')">이후 공정 추가</button>
+                                <button class="conn-search-action" onclick="addConnModal('${m.id}', '${selectedNodeId}')">수신 추가</button>
+                                <button class="conn-search-action out" onclick="addConnModal('${selectedNodeId}', '${m.id}')">송신 추가</button>
                             </div>
                         </div>
                     `).join('');
@@ -1718,13 +1574,6 @@ def render_process_visualization():
                         node.name = nameInput.value;
                     }
                     node.tag = currentViewId === 'main' ? 'Fab' : document.getElementById('edit-tag-input').value;
-                    
-                    let addrVal = document.getElementById('edit-address-input').value.trim();
-                    if (addrVal && !addrVal.startsWith('step_')) {
-                        addrVal = 'step_' + addrVal;
-                    }
-                    node.address = addrVal;
-                    
                     node.process = document.getElementById('edit-process-input').value;
                     const paramVal = document.getElementById('param-input').value;
                     const partVal = document.getElementById('part-input').value;
@@ -2021,307 +1870,6 @@ def render_process_visualization():
                 if (uploadInput) uploadInput.value = '';
             }
 
-            function applyTestCase(caseName) {
-                if (viewsData['fab-cmos'] && viewsData['fab-cmos'].nodes) {
-                    viewsData['fab-cmos'].nodes.forEach(node => {
-                        if (caseName && preloadedDatasets[caseName]) {
-                            let csvData = null;
-                            if (node.address && preloadedDatasets[caseName][node.address]) {
-                                csvData = preloadedDatasets[caseName][node.address];
-                            } else if (node.stepId && preloadedDatasets[caseName]['step_' + node.stepId]) {
-                                csvData = preloadedDatasets[caseName]['step_' + node.stepId];
-                            } else {
-                                csvData = preloadedDatasets[caseName][node.name] || preloadedDatasets[caseName][node.name.replace(/ /g, '_')];
-                            }
-                            
-                            if (csvData) {
-                                node.testCsvData = csvData;
-                                // 3-point moving average anomaly detection
-                                const lines = csvData.trim().split('\\n');
-                                if (lines.length > 1) {
-                                    const headers = lines[0].split(',');
-                                    const skipCols = ['Timestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', ''];
-                                    const numCols = [];
-                                    headers.forEach((h, i) => {
-                                        if (!skipCols.includes(h.trim())) numCols.push(i);
-                                    });
-                                    
-                                    // Parse numeric rows
-                                    const dataRows = [];
-                                    for (let i = 1; i < lines.length; i++) {
-                                        const row = lines[i].split(',');
-                                        if (row.length === headers.length) {
-                                            const r = {};
-                                            numCols.forEach(idx => { r[idx] = parseFloat(row[idx].trim()); });
-                                            dataRows.push(r);
-                                        }
-                                    }
-                                    
-                                    // 3-point moving average per column, then flag rows where any col deviates > 3sigma
-                                    const statuses = dataRows.map((_, ri) => {
-                                        let anomalous = false;
-                                        for (const colIdx of numCols) {
-                                            const window = [];
-                                            for (let w = Math.max(0, ri - 2); w <= ri; w++) {
-                                                const v = dataRows[w][colIdx];
-                                                if (!isNaN(v)) window.push(v);
-                                            }
-                                            if (window.length < 2) continue;
-                                            const avg = window.reduce((a, b) => a + b, 0) / window.length;
-                                            const std = Math.sqrt(window.reduce((a, b) => a + (b - avg) ** 2, 0) / window.length);
-                                            const current = dataRows[ri][colIdx];
-                                            if (!isNaN(current) && std > 0 && Math.abs(current - avg) > 3 * std) {
-                                                anomalous = true;
-                                                break;
-                                            }
-                                        }
-                                        return anomalous;
-                                    });
-                                    node._parsedStatusData = statuses;
-                                }
-                            } else {
-                                node.testCsvData = null;
-                                node._parsedStatusData = null;
-                            }
-                        } else {
-                            node.testCsvData = null;
-                            node._parsedStatusData = null;
-                        }
-                    });
-                    saveState();
-                    if (currentViewId === 'fab-cmos') {
-                        renderNodes();
-                    }
-                }
-            }
-
-            // Global Anomaly Tracking Interval
-            if (window.globalAnomalyInterval) clearInterval(window.globalAnomalyInterval);
-            window.globalAnomalyInterval = setInterval(() => {
-                if (!window.simulationStartTime || !viewsData[currentViewId] || !viewsData[currentViewId].nodes) return;
-                
-                const msPerPoint = 500;
-                const elapsedMs = Date.now() - window.simulationStartTime;
-                
-                let anyChanged = false;
-                viewsData[currentViewId].nodes.forEach(node => {
-                    const statuses = node._parsedStatusData;
-                    if (statuses && statuses.length > 0) {
-                        const currentRow = Math.floor(elapsedMs / msPerPoint) % statuses.length;
-                        const isAnomalous = statuses[currentRow] === true;
-                        if (node.isAnomalous !== isAnomalous) {
-                            node.isAnomalous = isAnomalous;
-                            anyChanged = true;
-                        }
-                    } else if (node.isAnomalous) {
-                        node.isAnomalous = false;
-                        anyChanged = true;
-                    }
-                });
-                
-                if (anyChanged) {
-                    renderNodes();
-                }
-            }, 100);
-
-            function startChartWithCSV(text) {
-                const lines = text.trim().split('\\n');
-                if (lines.length < 2) return;
-                
-                const headers = lines[0].split(',');
-                
-                // Identify data columns (ignore Timestamp, Step_ID, Step_Name, Status, Phase, Address)
-                const skipCols = ['Timestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', ''];
-                const dataColIndices = [];
-                const datasets = [];
-                
-                const colors = ['#34D399', '#A855F7', '#FBBF24', '#60A5FA', '#F472B6', '#EF4444', '#F97316'];
-                
-                headers.forEach((h, idx) => {
-                    const colName = h.trim();
-                    if (!skipCols.includes(colName)) {
-                        dataColIndices.push(idx);
-                        datasets.push({
-                            label: colName,
-                            data: [],
-                            borderColor: colors[(dataColIndices.length - 1) % colors.length],
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            pointRadius: [],
-                            pointBackgroundColor: [],
-                            pointHoverRadius: 5,
-                            tension: 0.1
-                        });
-                    }
-                });
-                
-                const timeIndex = headers.findIndex(h => h.trim() === 'Timestamp');
-                const phaseIndex = headers.findIndex(h => h.trim() === 'Phase');
-                const phaseShort = {'RAMP': 'R', 'IDLE': 'I', 'ACTIVE': 'A'};
-                
-                // Prepare data array
-                const fullData = [];
-                for(let i=1; i<lines.length; i++) {
-                    const row = lines[i].split(',');
-                    if (row.length === headers.length) {
-                        fullData.push(row);
-                    }
-                }
-                
-                clearChartState();
-                
-                const ctx = document.getElementById('sensorChart').getContext('2d');
-                sensorChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: [],
-                        datasets: datasets
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: { duration: 100 },
-                        layout: {
-                            padding: { bottom: 4 }
-                        },
-                        plugins: {
-                            legend: {
-                                labels: { color: '#E2E8F0', font: { size: 10 } }
-                            },
-                            tooltip: {
-                                mode: 'index',
-                                intersect: false,
-                                backgroundColor: 'rgba(15,23,42,0.9)',
-                                titleColor: '#34D399',
-                                bodyColor: '#F8FAFC'
-                            }
-                        },
-                        scales: {
-                            x: {
-                                ticks: {
-                                    maxTicksLimit: 8,
-                                    color: '#94A3B8',
-                                    font: { size: 10 },
-                                    callback: function(val) {
-                                        const lbl = this.getLabelForValue(val);
-                                        // Show only timestamp, phase shown as dot via plugin
-                                        return Array.isArray(lbl) ? lbl[0] : lbl;
-                                    }
-                                },
-                                grid: { color: 'rgba(255,255,255,0.05)' }
-                            },
-                            y: {
-                                ticks: { color: '#94A3B8' },
-                                grid: { color: 'rgba(255,255,255,0.05)' }
-                            }
-                        }
-                    },
-                    plugins: [{
-                        id: 'phaseDots',
-                        afterDraw(chart) {
-                            const scale = chart.scales.x;
-                            const c = chart.ctx;
-                            const phaseColors = { 'A': '#34D399', 'I': '#60A5FA', 'R': '#FBBF24' };
-                            c.save();
-                            scale.ticks.forEach((tick, i) => {
-                                const idx = tick.value;
-                                const rawLbl = chart.data.labels[idx];
-                                const phase = Array.isArray(rawLbl) ? rawLbl[1] : null;
-                                if (!phase || !phaseColors[phase]) return;
-                                const x = scale.getPixelForTick(i);
-                                // Draw dot just above x-axis line, inside chart area
-                                const y = chart.chartArea.bottom - 6;
-                                c.beginPath();
-                                c.arc(x, y, 4, 0, Math.PI * 2);
-                                c.fillStyle = phaseColors[phase];
-                                c.shadowBlur = 6;
-                                c.shadowColor = phaseColors[phase];
-                                c.fill();
-                                c.shadowBlur = 0;
-                            });
-                            c.restore();
-                        }
-                    }]
-
-                });
-
-
-                
-                // Continuous Streaming Simulation
-                if (!window.simulationStartTime) window.simulationStartTime = Date.now();
-                const msPerPoint = 500;
-                const maxPoints = 30;
-                
-                let lastRenderedRow = -1;
-                
-                streamInterval = setInterval(() => {
-                    if (fullData.length === 0) return;
-                    
-                    const elapsedMs = Date.now() - window.simulationStartTime;
-                    const currentRow = Math.floor(elapsedMs / msPerPoint) % fullData.length;
-                    
-                    if (currentRow !== lastRenderedRow) {
-                        // Pre-fill history if this is the very first render after opening modal
-                        // Helper: compute 3-point moving avg anomaly for a dataset
-                        function isAnomalyPoint(dsData, val) {
-                            const win = dsData.slice(-2).concat([val]).filter(v => !isNaN(v));
-                            if (win.length < 2) return false;
-                            const avg = win.reduce((a, b) => a + b, 0) / win.length;
-                            const std = Math.sqrt(win.reduce((a, b) => a + (b - avg) ** 2, 0) / win.length);
-                            return std > 0 && Math.abs(val - avg) > 3 * std;
-                        }
-
-                        if (lastRenderedRow === -1) {
-                            const fillCount = Math.min(maxPoints, fullData.length);
-                            for (let i = fillCount - 1; i >= 0; i--) {
-                                let r = (currentRow - i + fullData.length) % fullData.length;
-                                const row = fullData[r];
-                                const timestamp = timeIndex >= 0 ? row[timeIndex].split(' ')[1] : r.toString();
-                                const phase = phaseIndex >= 0 ? (phaseShort[row[phaseIndex].trim()] || row[phaseIndex].trim()) : '';
-                                sensorChart.data.labels.push(phase ? [timestamp, phase] : timestamp);
-                                dataColIndices.forEach((colIdx, dsIdx) => {
-                                    const val = parseFloat(row[colIdx]);
-                                    const ds = sensorChart.data.datasets[dsIdx];
-                                    const anom = isAnomalyPoint(ds.data, val);
-                                    ds.data.push(val);
-                                    ds.pointBackgroundColor.push(anom ? '#EF4444' : 'transparent');
-                                    ds.pointRadius.push(anom ? 5 : 2);
-                                });
-                            }
-                            sensorChart.update();
-                            lastRenderedRow = currentRow;
-                            return;
-                        }
-                        
-                        const row = fullData[currentRow];
-                        const timestamp = timeIndex >= 0 ? row[timeIndex].split(' ')[1] : currentRow.toString();
-                        const phase = phaseIndex >= 0 ? (phaseShort[row[phaseIndex].trim()] || row[phaseIndex].trim()) : '';
-                        
-                        sensorChart.data.labels.push(phase ? [timestamp, phase] : timestamp);
-                        if (sensorChart.data.labels.length > maxPoints) {
-                            sensorChart.data.labels.shift();
-                        }
-                        
-                        dataColIndices.forEach((colIdx, dsIdx) => {
-                            const val = parseFloat(row[colIdx]);
-                            const ds = sensorChart.data.datasets[dsIdx];
-                            const anom = isAnomalyPoint(ds.data, val);
-                            ds.data.push(val);
-                            ds.pointBackgroundColor.push(anom ? '#EF4444' : 'transparent');
-                            ds.pointRadius.push(anom ? 5 : 2);
-                            if (ds.data.length > maxPoints) {
-                                ds.data.shift();
-                                ds.pointBackgroundColor.shift();
-                                ds.pointRadius.shift();
-                            }
-                        });
-                        
-                        sensorChart.update();
-                        lastRenderedRow = currentRow;
-                    }
-                }, 100); // Fast poll to stay in perfect global sync
-            }
-
             const csvInput = document.getElementById('sensor-csv-upload');
             if (csvInput) {
                 csvInput.addEventListener('change', function(e) {
@@ -2330,22 +1878,118 @@ def render_process_visualization():
                     
                     const reader = new FileReader();
                     reader.onload = function(evt) {
-                        const csvText = evt.target.result;
-                        const node = nodesData.find(n => n.id === selectedNodeId);
-                        if (node) {
-                            node.manualCsvData = csvText;
-                            saveState();
+                        const text = evt.target.result;
+                        const lines = text.trim().split('\n');
+                        if (lines.length < 2) return;
+                        
+                        const headers = lines[0].split(',');
+                        
+                        // Identify data columns (ignore Timestamp, Step_ID, Step_Name, Status)
+                        const skipCols = ['Timestamp', 'Step_ID', 'Step_Name', 'Status'];
+                        const dataColIndices = [];
+                        const datasets = [];
+                        
+                        const colors = ['#34D399', '#A855F7', '#FBBF24', '#60A5FA', '#F472B6', '#EF4444', '#F97316'];
+                        
+                        headers.forEach((h, idx) => {
+                            const colName = h.trim();
+                            if (!skipCols.includes(colName)) {
+                                dataColIndices.push(idx);
+                                datasets.push({
+                                    label: colName,
+                                    data: [],
+                                    borderColor: colors[dataColIndices.length % colors.length],
+                                    backgroundColor: 'transparent',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 5,
+                                    tension: 0.1
+                                });
+                            }
+                        });
+                        
+                        const timeIndex = headers.findIndex(h => h.trim() === 'Timestamp');
+                        
+                        // Prepare data array
+                        const fullData = [];
+                        for(let i=1; i<lines.length; i++) {
+                            const row = lines[i].split(',');
+                            if (row.length === headers.length) {
+                                fullData.push(row);
+                            }
                         }
-                        startChartWithCSV(csvText);
+                        
+                        clearChartState();
+                        
+                        const ctx = document.getElementById('sensorChart').getContext('2d');
+                        sensorChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: [],
+                                datasets: datasets
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                animation: { duration: 100 },
+                                plugins: {
+                                    legend: {
+                                        labels: { color: '#E2E8F0', font: { size: 10 } }
+                                    },
+                                    tooltip: {
+                                        mode: 'index',
+                                        intersect: false,
+                                        backgroundColor: 'rgba(15,23,42,0.9)',
+                                        titleColor: '#34D399',
+                                        bodyColor: '#F8FAFC'
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        ticks: { color: '#94A3B8', maxTicksLimit: 8 },
+                                        grid: { color: 'rgba(255,255,255,0.05)' }
+                                    },
+                                    y: {
+                                        ticks: { color: '#94A3B8' },
+                                        grid: { color: 'rgba(255,255,255,0.05)' }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Streaming simulation
+                        let currentRow = 0;
+                        streamInterval = setInterval(() => {
+                            if (currentRow >= fullData.length) {
+                                clearInterval(streamInterval);
+                                return;
+                            }
+                            
+                            const row = fullData[currentRow];
+                            const timestamp = timeIndex >= 0 ? row[timeIndex].split(' ')[1] : currentRow.toString();
+                            
+                            sensorChart.data.labels.push(timestamp);
+                            if (sensorChart.data.labels.length > 30) {
+                                sensorChart.data.labels.shift();
+                            }
+                            
+                            dataColIndices.forEach((colIdx, dsIdx) => {
+                                const val = parseFloat(row[colIdx]);
+                                sensorChart.data.datasets[dsIdx].data.push(val);
+                                if (sensorChart.data.datasets[dsIdx].data.length > 30) {
+                                    sensorChart.data.datasets[dsIdx].data.shift();
+                                }
+                            });
+                            
+                            sensorChart.update();
+                            currentRow++;
+                        }, 500); // 0.5s per point
                     };
                     reader.readAsText(file);
                 });
             }
-
         </script>
         <div class="toast" id="toast-message">위치와 연결이 성공적으로 저장되었습니다!</div>
     </body>
     </html>
-    """
-
-    components.html(html_code, height=580)
+    
