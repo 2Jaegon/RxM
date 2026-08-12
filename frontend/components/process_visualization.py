@@ -1,17 +1,57 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import time
+import os
+import json
 
 
 def render_process_visualization():
+    # Load all dataset CSVs into a dict
+    base_dir = r"c:\Users\aicam\Documents\RxM"
+    dataset_dirs = {
+        'case1': 'dataset_case1_normal',
+        'case2': 'dataset_case2_global_cascade',
+        'case3': 'dataset_case3_selective_cascade'
+    }
+    
+    preloaded_datasets = {}
+    for case_name, folder_name in dataset_dirs.items():
+        folder_path = os.path.join(base_dir, folder_name)
+        preloaded_datasets[case_name] = {}
+        if os.path.exists(folder_path):
+            for filename in os.listdir(folder_path):
+                if filename.endswith(".csv"):
+                    file_path = os.path.join(folder_path, filename)
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                            lines = content.split('\n')
+                            if len(lines) > 1 and lines[1].strip():
+                                cols = lines[1].split(',')
+                                if len(cols) > 2:
+                                    step_id = cols[1].strip()
+                                    step_name = cols[2].strip()
+                                    step_name_space = step_name.replace("_", " ")
+                                    preloaded_datasets[case_name][step_id] = content
+                                    preloaded_datasets[case_name][step_name] = content
+                                    preloaded_datasets[case_name][step_name_space] = content
+                    except Exception as e:
+                        pass
+                        
+    # Convert to JSON and safely escape backslashes and single quotes to prevent breaking JS literal
+    preloaded_datasets_json = json.dumps(preloaded_datasets).replace('\\', '\\\\').replace("'", "\\'")
+
     # Corrected Data Topology:
     # 1. Factory Equipments -> AI Node (Red Circle)
     # 2. RAG Vector DB -> AI Node (Red Circle)
     # 3. AI Node -> Factory Equipment (Prescriptive Feedback)
     html_code = """
     <!DOCTYPE html>
-    <html>
+    <html lang="ko">
     <head>
         <meta charset="utf-8">
+        <!-- Cache Bust: """ + str(time.time()) + """ -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, sans-serif; user-select: none; }
@@ -22,15 +62,15 @@ def render_process_visualization():
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                min-height: 100vh;
-                padding: 0.8rem;
+                height: 100vh;
+                width: 100vw;
+                padding: 1.2rem;
                 overflow: hidden;
             }
 
             /* Toolbar Header */
             .n8n-toolbar {
                 width: 100%;
-                max-width: 1060px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
@@ -89,8 +129,7 @@ def render_process_visualization():
             .factory-canvas {
                 position: relative;
                 width: 100%;
-                max-width: 1060px;
-                height: 520px;
+                flex: 1;
                 background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.08) 0%, rgba(11, 13, 16, 0.96) 80%);
                 border: 2px solid rgba(52, 211, 153, 0.35);
                 border-radius: 16px;
@@ -124,9 +163,8 @@ def render_process_visualization():
             /* Compact Central Intelligence Core Hub */
             .central-hub {
                 position: absolute;
-                top: 50%;
-                right: 30px;
-                transform: translateY(-50%);
+                top: 150px;
+                left: 880px;
                 width: fit-content;
                 height: fit-content;
                 background: rgba(15, 23, 42, 0.88);
@@ -154,17 +192,17 @@ def render_process_visualization():
 
             /* Micro RAG Purple Circle Node */
             .node-purple {
-                width: 44px;
-                height: 44px;
+                width: 34px;
+                height: 34px;
                 border-radius: 50%;
-                background: radial-gradient(circle at 35% 35%, #C084FC 0%, #7E22CE 70%, #581C87 100%);
+                background: transparent;
                 border: 1.5px solid rgba(192, 132, 252, 0.7);
                 box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                color: #FFFFFF;
+                color: #C084FC;
                 cursor: pointer;
                 transition: transform 0.15s ease;
             }
@@ -172,104 +210,124 @@ def render_process_visualization():
 
             /* Micro AI Red Circle Node */
             .node-red {
-                width: 44px;
-                height: 44px;
+                width: 34px;
+                height: 34px;
                 border-radius: 50%;
-                background: radial-gradient(circle at 35% 35%, #F87171 0%, #DC2626 70%, #991B1B 100%);
+                background: transparent;
                 border: 1.5px solid rgba(248, 113, 113, 0.7);
                 box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                color: #FFFFFF;
+                color: #F87171;
                 cursor: pointer;
                 transition: transform 0.15s ease;
             }
             .node-red:hover { transform: scale(1.12); }
 
-            .micro-icon { font-size: 0.7rem; }
-            .micro-title { font-size: 0.62rem; font-weight: 800; margin-top: 1px; }
+            .micro-icon { font-size: 0.65rem; }
+            .micro-title { font-size: 0.58rem; font-weight: 800; margin-top: 1px; }
 
-            /* Compact n8n Equipment Node Card (150px width) */
+            /* Micro Box Equipment Node Card */
             .n8n-node {
                 position: absolute;
-                width: 150px;
+                min-width: 65px;
+                width: max-content;
                 background: rgba(15, 23, 42, 0.92);
                 border: 1.5px solid rgba(52, 211, 153, 0.4);
-                border-radius: 10px;
+                border-radius: 6px;
                 box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
                 cursor: move;
                 z-index: 12;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 0.4rem 0.4rem 0.3rem 0.4rem;
                 transition: border-color 0.15s ease, box-shadow 0.15s ease;
             }
             .n8n-node:hover {
                 border-color: #34D399;
                 box-shadow: 0 6px 20px rgba(52, 211, 153, 0.2);
+                transform: translateY(-2px);
             }
             .n8n-node.selected {
-                border-color: #F5D996;
-                box-shadow: 0 0 14px rgba(245, 217, 150, 0.5);
+                border-color: #3B82F6;
+                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+            }
+            .n8n-node.anomalous {
+                border-color: #EF4444 !important;
+                box-shadow: 0 0 20px rgba(239, 68, 68, 0.8) !important;
+                animation: pulse-red 1.5s infinite;
+            }
+            @keyframes pulse-red {
+                0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
+                50% { box-shadow: 0 0 30px rgba(239, 68, 68, 1); }
+                100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
             }
 
-            .n8n-node-header {
-                background: rgba(30, 41, 59, 0.8);
-                padding: 0.35rem 0.5rem;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 9px 9px 0 0;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
+            .micro-box-icon {
+                font-size: 0.9rem;
+                margin-bottom: 2px;
             }
-            .n8n-node-name {
-                font-size: 0.7rem;
+            .micro-box-name {
+                font-size: 0.55rem;
                 font-weight: 700;
                 color: #F8FAFC;
-                display: flex;
-                align-items: center;
-                gap: 0.25rem;
+                text-align: center;
+                white-space: nowrap;
+                line-height: 1.2;
+                margin-bottom: 3px;
+                width: 100%;
+            }
+            .micro-tag {
+                font-size: 0.45rem;
+                color: #34D399;
+                background: rgba(52, 211, 153, 0.15);
+                border: 1px solid rgba(52, 211, 153, 0.3);
+                padding: 1px 4px;
+                border-radius: 3px;
+                max-width: 100%;
+                white-space: nowrap;
+                text-align: center;
             }
             .node-delete-icon {
                 color: #94A3B8;
-                font-size: 0.75rem;
+                font-size: 0.65rem;
                 cursor: pointer;
-                padding: 0 0.2rem;
                 transition: color 0.15s ease;
             }
             .node-delete-icon:hover { color: #F87171; }
-
-            .n8n-node-body {
-                padding: 0.4rem 0.5rem;
-            }
 
             /* Micro Parameters & Components Tags */
             .param-tag {
                 display: inline-flex;
                 align-items: center;
-                gap: 0.2rem;
+                gap: 0.15rem;
                 background: rgba(52, 211, 153, 0.15);
                 color: #34D399;
                 border: 1px solid rgba(52, 211, 153, 0.3);
-                font-size: 0.58rem;
+                font-size: 0.48rem;
                 font-weight: 600;
-                padding: 0.1rem 0.35rem;
-                border-radius: 4px;
-                margin-right: 0.2rem;
-                margin-bottom: 0.2rem;
+                padding: 0.1rem 0.2rem;
+                border-radius: 3px;
+                margin-right: 0.15rem;
+                margin-bottom: 0.15rem;
             }
             .part-tag {
                 display: inline-flex;
                 align-items: center;
-                gap: 0.2rem;
+                gap: 0.15rem;
                 background: rgba(168, 85, 247, 0.15);
                 color: #C084FC;
                 border: 1px solid rgba(168, 85, 247, 0.3);
-                font-size: 0.58rem;
+                font-size: 0.48rem;
                 font-weight: 600;
-                padding: 0.1rem 0.35rem;
-                border-radius: 4px;
-                margin-right: 0.2rem;
-                margin-bottom: 0.2rem;
+                padding: 0.1rem 0.2rem;
+                border-radius: 3px;
+                margin-right: 0.15rem;
+                margin-bottom: 0.15rem;
             }
             .tag-del {
                 cursor: pointer;
@@ -278,26 +336,30 @@ def render_process_visualization():
             }
             .tag-del:hover { opacity: 1; color: #F87171; }
 
-            /* Micro Port Sockets (10px x 10px) */
+            /* Micro Port Sockets */
             .port-socket {
-                width: 10px;
-                height: 10px;
+                width: 14px;
+                height: 14px;
                 border-radius: 50%;
                 background: #34D399;
-                border: 1.5px solid #0F172A;
+                border: 2px solid #0F172A;
                 position: absolute;
                 top: 50%;
-                transform: translateY(-50%);
-                cursor: pointer;
-                transition: transform 0.15s ease;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                cursor: crosshair;
+                transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
                 z-index: 15;
+                opacity: 0;
+            }
+            .n8n-node:hover .port-socket {
+                opacity: 0.3;
             }
             .port-socket:hover {
-                transform: translateY(-50%) scale(1.5);
+                transform: translate(-50%, -50%) scale(1.4);
                 background: #F5D996;
+                opacity: 1 !important;
             }
-            .port-in { left: -5px; }
-            .port-out { right: -5px; }
 
             /* Modal Dialog Overlay */
             .modal-overlay {
@@ -371,21 +433,114 @@ def render_process_visualization():
                 padding: 0.4rem;
                 margin-bottom: 0.7rem;
             }
+            
+            .conn-search-item {
+                padding: 0.4rem 0.6rem;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 0.7rem;
+                color: #E2E8F0;
+            }
+            .conn-search-item:last-child { border-bottom: none; }
+            .conn-search-item:hover { background: rgba(255,255,255,0.05); }
+            .conn-search-actions { display: flex; gap: 4px; }
+            .conn-search-action {
+                font-size: 0.55rem; padding: 0.2rem 0.4rem; border-radius: 4px; cursor: pointer;
+                border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #94A3B8; transition: all 0.15s;
+            }
+            .conn-search-action:hover { background: #34D399; color: #0F172A; border-color: #34D399; }
+            .conn-search-action.out:hover { background: #A855F7; color: #FFF; border-color: #A855F7; }
+
+            .tab-container {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 1rem;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                padding-bottom: 0.5rem;
+            }
+            .tab-btn {
+                background: none;
+                border: none;
+                color: #94A3B8;
+                font-size: 0.75rem;
+                cursor: pointer;
+                padding: 0.4rem 0.8rem;
+                border-radius: 4px;
+                transition: all 0.2s;
+            }
+            .tab-btn:hover {
+                background: rgba(255,255,255,0.05);
+            }
+            .tab-btn.active {
+                color: #34D399;
+                background: rgba(52, 211, 153, 0.1);
+                font-weight: 700;
+            }
+            .tab-content {
+                display: none;
+            }
+            .tab-content.active {
+                display: block;
+            }
+
+            .marquee-box {
+                position: absolute;
+                border: 1px dashed #34D399;
+                background: rgba(52, 211, 153, 0.15);
+                pointer-events: none;
+                z-index: 50;
+                display: none;
+            }
 
             canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+
+            /* Toast Notification */
+            .toast {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(16, 185, 129, 0.95);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease, transform 0.3s ease;
+                z-index: 1000;
+            }
+            .toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(-10px);
+            }
         </style>
     </head>
     <body>
         <!-- n8n Toolbar -->
         <div class="n8n-toolbar">
-            <div class="toolbar-title">
-                ⚡ FACTORY FLOW BUILDER
+            <div class="toolbar-title" id="breadcrumb-nav">
+                FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> Main Map
             </div>
+            
+            <!-- Test Scenario Selector -->
+            <div style="display:flex; align-items:center; gap: 10px; margin-left: 20px; flex-grow: 1;">
+                <label style="font-size:0.75rem; color:#94A3B8;">테스트 시나리오:</label>
+                <select id="test-case-selector" class="modal-input" onchange="applyTestCase(this.value)" style="width: 180px; padding: 0.2rem; background: rgba(15, 23, 42, 0.8); margin: 0;">
+                    <option value="">적용 안함 (수동 업로드)</option>
+                    <option value="case1">Case 1: Normal</option>
+                    <option value="case2">Case 2: Global Cascade</option>
+                    <option value="case3">Case 3: Selective Cascade</option>
+                </select>
+            </div>
+
             <div class="toolbar-actions">
-                <button class="tb-btn" onclick="openAddNodeModal()">➕ 장비 추가</button>
-                <button class="tb-btn" onclick="openEditModal()">⚙️ 파라미터 / 부품 편집</button>
-                <button class="tb-btn danger" onclick="deleteSelectedNode()">🗑️ 장비 삭제</button>
-                <button class="tb-btn" onclick="resetToDefaults()">🔄 초기화</button>
+                <button class="tb-btn" id="btn-save" onclick="manualSave()" style="margin-right: 4px;">위치 저장</button>
+                <button class="tb-btn" id="btn-add-node" onclick="openAddNodeModal()">장비/공장 추가</button>
             </div>
         </div>
 
@@ -394,23 +549,24 @@ def render_process_visualization():
             <div class="factory-bg-grid"></div>
             <div class="factory-badge">FACTORY AREA</div>
 
-            <!-- Nodes Container -->
-            <div id="nodes-container"></div>
+            <!-- Zoom Wrapper for DOM Elements -->
+            <div id="zoom-wrapper" style="transform-origin: 0 0; width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10;">
+                <!-- Nodes Container (Restore pointer events) -->
+                <div id="nodes-container" style="pointer-events: auto;"></div>
 
-            <!-- Compact Central Hub -->
-            <div class="central-hub">
-                <div class="hub-label">HUB</div>
-                
-                <!-- Micro RAG Node (Top Knowledge Base) -->
-                <div class="node-purple" id="node-rag" title="RAG 지식베이스 DB">
-                    <div class="micro-icon">📚</div>
-                    <div class="micro-title">RAG</div>
-                </div>
+                <!-- Compact Central Hub -->
+                <div class="central-hub" id="central-hub" style="pointer-events: auto; cursor: move;">
+                    <div class="hub-label">HUB</div>
+                    
+                    <!-- Micro RAG Node (Top Knowledge Base) -->
+                    <div class="node-purple" id="node-rag" title="RAG 지식베이스 DB">
+                        <div class="micro-title">RAG</div>
+                    </div>
 
-                <!-- Micro AI Node (Bottom Intelligence Engine) -->
-                <div class="node-red" id="node-ai" title="AI 처방 엔진">
-                    <div class="micro-icon">🧠</div>
-                    <div class="micro-title">AI</div>
+                    <!-- Micro AI Node (Bottom Intelligence Engine) -->
+                    <div class="node-red" id="node-ai" title="AI 처방 엔진">
+                        <div class="micro-title">AI</div>
+                    </div>
                 </div>
             </div>
 
@@ -421,18 +577,40 @@ def render_process_visualization():
         <div class="modal-overlay" id="add-modal" onclick="closeModalOnOverlay(event, 'add-modal')">
             <div class="modal-box">
                 <div class="modal-header">
-                    <div class="modal-title">➕ 신규 장비 노드 추가</div>
+                    <div class="modal-title" id="add-modal-title">➕ 신규 장비 노드 추가</div>
                     <button class="modal-close-btn" onclick="closeModal('add-modal')">✕</button>
                 </div>
-                <label style="font-size:0.7rem; color:#94A3B8;">장비 이름</label>
-                <input class="modal-input" id="node-name-input" placeholder="예: 식각장비_A, Vacuum_Pump_1" value="식각장비_B">
-                <label style="font-size:0.7rem; color:#94A3B8;">장비 아이콘</label>
-                <select class="modal-input" id="node-icon-input">
-                    <option value="🏭">🏭 식각장비</option>
-                    <option value="⚡">⚡ RF Matcher</option>
-                    <option value="🌀">🌀 Vacuum Pump</option>
-                    <option value="🎛️">🎛️ Gas Controller</option>
-                </select>
+                <label style="font-size:0.7rem; color:#94A3B8;" id="add-modal-name-label">장비 이름</label>
+                <input class="modal-input" id="node-name-input" placeholder="이름을 입력하세요">
+                
+                <div id="add-modal-extra-fields">
+                    <label style="font-size:0.7rem; color:#94A3B8;">8대 공정 (Tag)</label>
+                    <select class="modal-input" id="node-tag-input" style="cursor: pointer;">
+                        <option value="Fab">Fab (공장)</option>
+                        <option value="Etch">Etch</option>
+                        <option value="Litho">Litho</option>
+                        <option value="CVD">CVD</option>
+                        <option value="PVD">PVD</option>
+                        <option value="CMP">CMP</option>
+                        <option value="Implant">Implant</option>
+                        <option value="Wet Process">Wet Process</option>
+                        <option value="Wet Etch">Wet Etch</option>
+                        <option value="RTP">RTP</option>
+                        <option value="Epitaxy">Epitaxy</option>
+                        <option value="ECP">ECP</option>
+                        <option value="Material">Material</option>
+                        <option value="BEOL">BEOL</option>
+                        <option value="Passivation">Passivation</option>
+                        <option value="Test">Test</option>
+                    </select>
+                    <label style="font-size:0.7rem; color:#94A3B8;">세부 공정 (Process)</label>
+                    <input class="modal-input" id="node-process-input" placeholder="예: ICP, PVD">
+                    <label style="font-size:0.7rem; color:#94A3B8;">초기 파라미터 (쉼표로 구분)</label>
+                    <input class="modal-input" id="node-add-param-input" placeholder="예: Temperature, Pressure">
+                    <label style="font-size:0.7rem; color:#94A3B8;">초기 하위 부품 (쉼표로 구분)</label>
+                    <input class="modal-input" id="node-add-part-input" placeholder="예: Sensor A, Valve B">
+                </div>
+
                 <div class="modal-actions">
                     <button class="modal-btn-cancel" onclick="closeModal('add-modal')">취소</button>
                     <button class="modal-btn" onclick="confirmAddNode()">생성하기</button>
@@ -444,97 +622,342 @@ def render_process_visualization():
         <div class="modal-overlay" id="edit-modal" onclick="closeModalOnOverlay(event, 'edit-modal')">
             <div class="modal-box">
                 <div class="modal-header">
-                    <div class="modal-title">⚙️ 파라미터 & 부품 편집</div>
+                    <div class="modal-title" id="modal-selected-name" style="color:#34D399; font-weight:700; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
                     <button class="modal-close-btn" onclick="closeModal('edit-modal')">✕</button>
                 </div>
-                <div id="modal-selected-name" style="font-size:0.75rem; color:#34D399; font-weight:700; margin-bottom:0.6rem;"></div>
-                
-                <label style="font-size:0.7rem; color:#94A3B8;">현재 파라미터 목록 (클릭시 삭제)</label>
-                <div class="current-items-list" id="current-params-list"></div>
+                <div style="display: flex; gap: 20px; width: 100%; height: 100%;" id="edit-modal-flex">
+                    
+                    <!-- Left Column (Sensor Data) -->
+                    <div id="edit-modal-left" style="flex: 1.5; display: flex; flex-direction: column; min-width: 450px;">
+                        <label style="font-size:0.75rem; color:#34D399; margin-bottom: 0.5rem; display: block; font-weight: bold;"> 실시간 센서 데이터 (CSV)</label>
+                        <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="padding: 0.2rem; cursor: pointer; color: #E2E8F0; font-size: 0.75rem;">
+                        <div id="sensor-chart-container" style="flex: 1; min-height: 380px; width: 100%; margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; position: relative;">
+                            <canvas id="sensorChart"></canvas>
+                        </div>
+                    </div>
 
-                <label style="font-size:0.7rem; color:#94A3B8;">추가 파라미터 (예: RF_Power: 1450W)</label>
-                <input class="modal-input" id="param-input" placeholder="RF_Power: 1450W">
+                    <!-- Right Column (Tabs & Info) -->
+                    <div id="edit-modal-right" style="flex: 1; display: flex; flex-direction: column; min-width: 320px;">
+                        <div class="tab-container" id="edit-tab-container">
+                            <button class="tab-btn active" id="tab-btn-info" onclick="switchEditTab('info')">기본 정보</button>
+                            <button class="tab-btn" id="tab-btn-params" onclick="switchEditTab('params')">파라미터</button>
+                            <button class="tab-btn" id="tab-btn-parts" onclick="switchEditTab('parts')">하위 부품</button>
+                        </div>
 
-                <label style="font-size:0.7rem; color:#94A3B8;">현재 하위 부품 목록 (클릭시 삭제)</label>
-                <div class="current-items-list" id="current-parts-list"></div>
+                        <div id="fab-edit-content" style="display: none; padding-top: 0.5rem; padding-bottom: 0.5rem;">
+                            <label style="font-size:0.7rem; color:#94A3B8;">내부 장비 목록</label>
+                            <div class="current-items-list" id="fab-internal-nodes-list" style="min-height: 80px; max-height: 200px; margin-bottom: 10px;"></div>
+                        </div>
 
-                <label style="font-size:0.7rem; color:#94A3B8;">추가 하위 부품 (예: Plasma Chamber)</label>
-                <input class="modal-input" id="part-input" placeholder="Plasma Chamber">
+                        <div class="tab-content active" id="tab-content-info" style="flex: 1;">
+                            <label style="font-size:0.7rem; color:#94A3B8;">8대 공정 (Tag)</label>
+                            <select class="modal-input" id="edit-tag-input" style="cursor: pointer;">
+                                <option value="Fab">Fab (공장)</option>
+                                <option value="Etch">Etch</option>
+                                <option value="Litho">Litho</option>
+                                <option value="CVD">CVD</option>
+                                <option value="PVD">PVD</option>
+                                <option value="CMP">CMP</option>
+                                <option value="Implant">Implant</option>
+                                <option value="Wet Process">Wet Process</option>
+                                <option value="Wet Etch">Wet Etch</option>
+                                <option value="RTP">RTP</option>
+                                <option value="Epitaxy">Epitaxy</option>
+                                <option value="ECP">ECP</option>
+                                <option value="Material">Material</option>
+                                <option value="BEOL">BEOL</option>
+                                <option value="Passivation">Passivation</option>
+                                <option value="Test">Test</option>
+                            </select>
+                            <label style="font-size:0.7rem; color:#94A3B8;">Address (주소)</label>
+                            <input class="modal-input" id="edit-address-input" placeholder="예: 01, 15 (자동으로 step_가 붙습니다)">
+                            <label style="font-size:0.7rem; color:#94A3B8;">세부 공정 (Process)</label>
+                            <input class="modal-input" id="edit-process-input" placeholder="예: ICP, PVD">
 
+                            <div style="display: flex; gap: 10px; margin-top: 0.2rem;">
+                                <div style="flex: 1;">
+                                    <label style="font-size:0.65rem; color:#94A3B8;">이전 공정 (Previous)</label>
+                                    <div class="current-items-list" id="current-incoming-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
+                                </div>
+                                <div style="flex: 1;">
+                                    <label style="font-size:0.65rem; color:#94A3B8;">이후 공정 (Next)</label>
+                                    <div class="current-items-list" id="current-outgoing-list" style="min-height: 50px; max-height: 80px; padding: 0.3rem;"></div>
+                                </div>
+                            </div>
+
+                            <label style="font-size:0.65rem; color:#94A3B8; margin-top: 0.2rem; display: block;">연결 장비 검색 추가</label>
+                            <div style="position: relative; margin-bottom: 0.5rem;">
+                                <input class="modal-input" id="conn-search-input" placeholder="연결할 장비 이름 검색..." autocomplete="off" style="margin-bottom: 0;">
+                                <div id="conn-search-results" style="position: absolute; top: calc(100% + 2px); left: 0; width: 100%; background: #1E293B; border: 1px solid rgba(52, 211, 153, 0.4); border-radius: 6px; z-index: 50; max-height: 150px; overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="tab-content-params" style="flex: 1;">
+                            <label style="font-size:0.7rem; color:#94A3B8;">현재 파라미터 목록 (클릭시 삭제)</label>
+                            <div class="current-items-list" id="current-params-list" style="max-height: 150px;"></div>
+                            <label style="font-size:0.7rem; color:#94A3B8;">추가 파라미터</label>
+                            <input class="modal-input" id="param-input" placeholder="파라미터 입력">
+                        </div>
+
+                        <div class="tab-content" id="tab-content-parts" style="flex: 1;">
+                            <label style="font-size:0.7rem; color:#94A3B8;">현재 하위 부품 목록 (클릭시 삭제)</label>
+                            <div class="current-items-list" id="current-parts-list" style="max-height: 150px;"></div>
+                            <label style="font-size:0.7rem; color:#94A3B8;">추가 하위 부품</label>
+                            <input class="modal-input" id="part-input" placeholder="하위 부품 입력">
+                        </div>
+
+                        <div class="modal-actions" style="margin-top: auto; padding-top: 20px;">
+                            <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">취소</button>
+                            <button class="modal-btn-cancel" style="color: #F87171; border-color: rgba(248, 113, 113, 0.4);" onclick="deleteNodeFromModal()">🗑️ 삭제</button>
+                            <button class="modal-btn" onclick="confirmEditNode()">저장하기</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div class="modal-overlay" id="confirm-modal" onclick="closeModalOnOverlay(event, 'confirm-modal')">
+            <div class="modal-box" style="width: 300px;">
+                <div class="modal-header">
+                    <div class="modal-title">⚠️ 확인</div>
+                    <button class="modal-close-btn" onclick="closeModal('confirm-modal')">✕</button>
+                </div>
+                <div id="confirm-modal-message" style="font-size:0.75rem; color:#E2E8F0; margin-bottom:1.5rem; margin-top:0.5rem; text-align:center;">정말로 삭제하시겠습니까?</div>
                 <div class="modal-actions">
-                    <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">취소</button>
-                    <button class="modal-btn" onclick="confirmEditNode()">저장하기</button>
+                    <button class="modal-btn-cancel" onclick="closeModal('confirm-modal')">취소</button>
+                    <button class="modal-btn" style="background:#F87171; color:#450A0A;" onclick="executeConfirmAction()">확인</button>
                 </div>
             </div>
         </div>
 
         <script>
-            const defaultNodes = [
-                {
-                    id: 'node-1',
-                    name: '식각장비_A',
-                    icon: '🏭',
-                    x: 35,
-                    y: 70,
-                    params: ['RF: 1,450W', 'Press: 45mTorr'],
-                    parts: ['Chamber']
-                },
-                {
-                    id: 'node-2',
-                    name: 'Vacuum_Pump_1',
-                    icon: '🌀',
-                    x: 35,
-                    y: 280,
-                    params: ['RPM: 3,600'],
-                    parts: ['Turbomolecular']
-                },
-                {
-                    id: 'node-3',
-                    name: 'RF_Matcher_A',
-                    icon: '⚡',
-                    x: 240,
-                    y: 170,
-                    params: ['Freq: 13.56MHz'],
-                    parts: ['Capacitor']
-                }
+            const preloadedDatasets = JSON.parse('""" + preloaded_datasets_json + """');
+            const cmosSteps = [
+                { name: "베어 웨이퍼 준비", icon: "💿", tag: "Material", process: "Wafer Prep" },
+                { name: "세정", icon: "🚿", tag: "Wet Process", process: "Cleaning" },
+                { name: "Pad 증착", icon: "☁️", tag: "CVD", process: "Deposition" },
+                { name: "STI 포토", icon: "📸", tag: "Litho", process: "Photo" },
+                { name: "STI 식각", icon: "⚡", tag: "Etch", process: "Etching" },
+                { name: "STI 갭필", icon: "☁️", tag: "CVD", process: "Gap Fill" },
+                { name: "STI 평탄화", icon: "🥌", tag: "CMP", process: "Planarization" },
+                { name: "세정", icon: "🚿", tag: "Wet Process", process: "Cleaning" },
+                { name: "N/P-Well 주입", icon: "🔫", tag: "Implant", process: "Implantation" },
+                { name: "활성화 열처리", icon: "🔥", tag: "RTP", process: "Thermal" },
+                { name: "더미게이트 증착", icon: "☁️", tag: "CVD", process: "Deposition" },
+                { name: "더미게이트 식각", icon: "⚡", tag: "Etch", process: "Etching" },
+                { name: "LDD 이온주입", icon: "🔫", tag: "Implant", process: "Implantation" },
+                { name: "스페이서 식각", icon: "⚡", tag: "Etch", process: "Etching" },
+                { name: "S/D 에피택시", icon: "🌱", tag: "Epitaxy", process: "Deposition" },
+                { name: "고농도 S/D 주입", icon: "🔥", tag: "Implant", process: "Implantation" },
+                { name: "ILD0 증착", icon: "☁️", tag: "CVD", process: "Deposition" },
+                { name: "ILD0 평탄화", icon: "🥌", tag: "CMP", process: "Planarization" },
+                { name: "더미 폴리 제거", icon: "💧", tag: "Wet Etch", process: "Etching" },
+                { name: "금속 게이트 증착", icon: "🔬", tag: "CVD", process: "ALD" },
+                { name: "금속 평탄화", icon: "🥌", tag: "CMP", process: "Planarization" },
+                { name: "컨택홀 포토", icon: "📸", tag: "Litho", process: "Litho" },
+                { name: "컨택홀 식각", icon: "⚡", tag: "Etch", process: "Etching" },
+                { name: "살리사이드 열처리", icon: "🔥", tag: "RTP", process: "Thermal" },
+                { name: "컨택 갭필", icon: "🥌", tag: "CMP", process: "CVD/CMP" },
+                { name: "1층 금속 절연막", icon: "☁️", tag: "CVD", process: "Deposition" },
+                { name: "다마신 포토", icon: "📸", tag: "Litho", process: "Damascene Litho" },
+                { name: "다마신 식각", icon: "⚡", tag: "Etch", process: "Damascene Etch" },
+                { name: "Cu Barrier/Seed", icon: "🔬", tag: "PVD", process: "Deposition" },
+                { name: "구리 전해도금", icon: "🔋", tag: "ECP", process: "Deposition" },
+                { name: "구리 평탄화", icon: "🥌", tag: "CMP", process: "Planarization" },
+                { name: "상위 배선층 반복", icon: "🔄", tag: "BEOL", process: "Loop" },
+                { name: "보호막 증착", icon: "🛡️", tag: "CVD", process: "Passivation" },
+                { name: "패드 오픈 식각", icon: "⚡", tag: "Etch", process: "Etching" },
+                { name: "칩 테스트", icon: "✅", tag: "Test", process: "EDS" }
             ];
 
-            const defaultConnections = [
-                { from: 'node-1', to: 'node-3' },
-                { from: 'node-2', to: 'node-3' }
-            ];
-
-            function loadState() {
-                try {
-                    const savedNodes = localStorage.getItem('rxm_nodes_data');
-                    const savedConns = localStorage.getItem('rxm_connections_data');
-                    return {
-                        nodes: savedNodes ? JSON.parse(savedNodes) : defaultNodes,
-                        connections: savedConns ? JSON.parse(savedConns) : defaultConnections
-                    };
-                } catch(e) {
-                    return { nodes: defaultNodes, connections: defaultConnections };
+            const defaultFabNodes = cmosSteps.map((step, index) => {
+                const cols = 7;
+                const row = Math.floor(index / cols);
+                const col = row % 2 === 0 ? (index % cols) : (cols - 1 - (index % cols));
+                
+                let params = [];
+                let parts = [];
+                const t = step.tag;
+                
+                if (t.includes('Wet Process') || t.includes('Wet Etch')) {
+                    params = ["농도 (HF, SC-1/2 등)", "배스 온도", "DI 비저항", "Spin RPM", "공정 시간"];
+                    parts = ["케미컬 필터", "O-ring", "PTFE 배관/밸브", "석영 배스", "스핀 척"];
+                } else if (t.includes('RTP') || t.includes('Furnace')) {
+                    params = ["Zone 온도 프로파일", "공정 가스 유량", "챔버 압력", "공정 시간"];
+                    parts = ["쿼츠 튜브", "열전대(TC)", "히터 엘리먼트", "할로겐 램프", "SiC 보트"];
+                } else if (t.includes('Litho')) {
+                    params = ["노광량 (Dose)", "Focus Offset", "오버레이 오차", "감광액 두께/RPM", "Bake 온도"];
+                    parts = ["광원 램프", "PR 디스펜스 노즐", "화학 필터", "WEE 램프"];
+                } else if (t.includes('Etch') || t.includes('Damascene')) {
+                    params = ["Source/Bias Power", "가스 혼합 비율", "챔버 진공 압력", "ESC 표면 온도", "후면 He 압력"];
+                    parts = ["포커스 링", "샤워헤드", "챔버 내벽 라이너", "정전척(ESC)", "TMP 부품"];
+                } else if (t.includes('CVD') || t.includes('ALD')) {
+                    params = ["서셉터 온도", "챔버 압력", "전구체 유량/시간", "Purge 가스 유량", "RF 파워"];
+                    parts = ["샤워헤드", "서셉터", "전구체 기화기", "포어라인 트랩", "슬릿 밸브 O-링"];
+                } else if (t.includes('PVD')) {
+                    params = ["DC 파워", "Ar 가스 유량", "챔버 고진공도", "자석 회전 속도"];
+                    parts = ["Target (금속)", "Shield", "마그네트론 어셈블리"];
+                } else if (t.includes('Implant')) {
+                    params = ["도즈량 (Dose)", "가속 에너지 (keV)", "Beam Current", "Tilt/Twist 각도"];
+                    parts = ["이온 소스 필라멘트", "고전압 애자", "패러데이 컵", "질량 분석기 슬릿"];
+                } else if (t.includes('CMP')) {
+                    params = ["헤드 다운포스", "플래튼/헤드 RPM", "슬러리 유량/온도", "세정 브러시 압력"];
+                    parts = ["연마 패드", "다이아몬드 디스크", "리테이닝 링", "PVA 브러시"];
+                } else if (t.includes('ECP')) {
+                    params = ["전류 밀도", "배스 온도", "유기 첨가제 농도", "도금 시간"];
+                    parts = ["애노드(구리판)", "도금액 미세 필터", "립 실"];
+                } else {
+                    params = ["Status: Normal", "Process Time: Auto"];
+                    parts = ["Standard Unit"];
                 }
+
+                let initX = 40 + col * 115;
+                let initY = 30 + row * 95;
+                let nodeW = 65, nodeH = 50;
+                let gridSize = 40, dotOffset = 20;
+                let targetCx = initX + nodeW / 2;
+                let targetCy = initY + nodeH / 2;
+                let snappedCx = Math.round((targetCx - dotOffset) / gridSize) * gridSize + dotOffset;
+                let snappedCy = Math.round((targetCy - dotOffset) / gridSize) * gridSize + dotOffset;
+
+                return {
+                    id: 'node-cmos-' + index,
+                    address: 'step_' + String(index + 1).padStart(2, '0'),
+                    name: step.name,
+                    icon: step.icon,
+                    tag: step.tag,
+                    process: step.process,
+                    x: snappedCx - nodeW / 2,
+                    y: snappedCy - nodeH / 2,
+                    params: params,
+                    parts: parts
+                };
+            });
+
+            const defaultFabConnections = [];
+            for (let i = 0; i < defaultFabNodes.length - 1; i++) {
+                defaultFabConnections.push({ from: defaultFabNodes[i].id, to: defaultFabNodes[i+1].id });
             }
+            // Connect the last node to AI node
+            defaultFabConnections.push({ from: defaultFabNodes[defaultFabNodes.length - 1].id, to: 'node-ai' });
+
+            const defaultViews = {
+                'main': {
+                    nodes: [{
+                        id: 'fab-cmos',
+                        name: 'CMOS 공정 팹',
+                        icon: '🏭',
+                        x: Math.round(((window.innerWidth / 2 - 100) + 65/2 - 20) / 40) * 40 + 20 - 65/2,
+                        y: Math.round(((window.innerHeight / 2 - 50) + 50/2 - 20) / 40) * 40 + 20 - 50/2,
+                        params: ['Fab'],
+                        parts: []
+                    }],
+                    connections: [{ from: 'fab-cmos', to: 'node-ai' }]
+                },
+                'fab-cmos': {
+                    nodes: defaultFabNodes,
+                    connections: defaultFabConnections
+                }
+            };
+
+            let viewsData = JSON.parse(localStorage.getItem('rxm_views_data_v3')) || JSON.parse(JSON.stringify(defaultViews));
+            
+            // Backward compatibility migration: Move params[0] to tag if tag is not defined.
+            Object.values(viewsData).forEach(view => {
+                if (view.nodes) {
+                    view.nodes.forEach(node => {
+                        if (!node.tag && node.params && node.params.length > 0) {
+                            if (node.params[0] === 'Fab') {
+                                node.tag = 'Fab';
+                                node.params.shift();
+                            } else if (node.params[0] !== 'Status: OK') {
+                                node.tag = node.params[0];
+                                node.params.shift();
+                            }
+                        }
+                        // Migrate address if missing
+                        if (!node.address && node.id && node.id.startsWith('node-cmos-')) {
+                            const idxStr = node.id.replace('node-cmos-', '');
+                            const idx = parseInt(idxStr, 10);
+                            if (!isNaN(idx)) {
+                                node.address = 'step_' + String(idx + 1).padStart(2, '0');
+                            }
+                        }
+                    });
+                }
+            });
+            
+            let currentViewId = 'main';
 
             function saveState() {
                 try {
-                    localStorage.setItem('rxm_nodes_data', JSON.stringify(nodesData));
-                    localStorage.setItem('rxm_connections_data', JSON.stringify(connections));
+                    viewsData[currentViewId].nodes = nodesData;
+                    viewsData[currentViewId].connections = connections;
+                    localStorage.setItem('rxm_views_data_v3', JSON.stringify(viewsData));
                 } catch(e) {}
             }
 
-            const state = loadState();
-            let nodesData = state.nodes;
-            let connections = state.connections;
+            let nodesData = viewsData[currentViewId].nodes;
+            let connections = viewsData[currentViewId].connections;
+
+            function navigateView(viewId) {
+                saveState();
+                currentViewId = viewId;
+                if (!viewsData[viewId]) {
+                    viewsData[viewId] = { nodes: [], connections: [] };
+                }
+                nodesData = viewsData[currentViewId].nodes;
+                connections = viewsData[currentViewId].connections;
+                selectedNodeId = null;
+                
+                zoom = 1; panX = 0; panY = 0;
+                updateTransform();
+                updateBreadcrumb();
+                renderNodes();
+            }
+
+            function updateBreadcrumb() {
+                const nav = document.getElementById('breadcrumb-nav');
+                const btnAdd = document.getElementById('btn-add-node');
+                if (!nav) return;
+                if (currentViewId === 'main') {
+                    nav.innerHTML = `FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> Main Map`;
+                    if (btnAdd) btnAdd.innerText = '신규 공장 추가';
+                } else {
+                    const fabNode = viewsData['main'].nodes.find(n => n.id === currentViewId) || {name: currentViewId};
+                    nav.innerHTML = `FACTORY FLOW BUILDER <span style="margin: 0 8px; color:#64748B;">|</span> <span style="cursor:pointer; color:#94A3B8; text-decoration:underline;" onclick="navigateView('main')">Main Map</span> <span style="margin: 0 8px; color:#64748B;">&gt;</span> <span style="color:#F8FAFC;">${fabNode.name}</span>`;
+                    if (btnAdd) btnAdd.innerText = '신규 장비 추가';
+                }
+            }
+            updateBreadcrumb();
 
             let selectedNodeId = nodesData.length > 0 ? nodesData[0].id : null;
+            let selectedNodeIds = new Set();
+            if (selectedNodeId) selectedNodeIds.add(selectedNodeId);
+            
             let wiringStartNodeId = null;
             let mouseX = 0, mouseY = 0;
+            let rawMouseX = -1000, rawMouseY = -1000;
+            
+            // Pan and Zoom states
+            let zoom = 1;
+            let panX = 0, panY = 0;
+            let isPanning = false;
+            let panStartX = 0, panStartY = 0;
+
+            // Marquee states
+            let isMarquee = false;
+            let marqueeStartX = 0;
+            let marqueeStartY = 0;
+            const marqueeEl = document.createElement('div');
+            marqueeEl.className = 'marquee-box';
 
             const container = document.getElementById('nodes-container');
             const canvas = document.getElementById('flowCanvas');
             const ctx = canvas.getContext('2d');
+            
+            document.getElementById('zoom-wrapper').appendChild(marqueeEl);
 
             function resizeCanvas() {
                 const rect = document.getElementById('canvas-container').getBoundingClientRect();
@@ -544,37 +967,231 @@ def render_process_visualization():
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
 
+            function updateTransform() {
+                const zoomWrapper = document.getElementById('zoom-wrapper');
+                if (zoomWrapper) {
+                    zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+                }
+                const bgGrid = document.querySelector('.factory-bg-grid');
+                if (bgGrid) {
+                    bgGrid.style.backgroundPosition = `${panX}px ${panY}px`;
+                    bgGrid.style.backgroundSize = `${40 * zoom}px ${40 * zoom}px`;
+                }
+            }
+
+            document.getElementById('canvas-container').addEventListener('contextmenu', e => {
+                if (e.target.id === 'canvas-container' || e.target.id === 'flowCanvas' || e.target.classList.contains('factory-bg-grid')) {
+                    e.preventDefault();
+                    
+                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+                    const clickX = e.clientX - cRect.left;
+                    const clickY = e.clientY - cRect.top;
+                    
+                    let clickedConnection = -1;
+                    
+                    ctx.save();
+                    ctx.translate(panX, panY);
+                    ctx.scale(zoom, zoom);
+                    ctx.lineWidth = 15; // thick stroke for easier clicking
+                    
+                    for (let i = connections.length - 1; i >= 0; i--) {
+                        const c = connections[i];
+                        const srcNode = nodesData.find(n => n.id === c.from);
+                        if (!srcNode) continue;
+                        const srcElem = document.getElementById(c.from);
+                        let sx = srcNode.x + 75, sy = srcNode.y + 30;
+                        let dx, dy;
+                        if (srcElem) {
+                            const outPort = srcElem.querySelector('.port-socket');
+                            const wc = getWorldCoords(outPort);
+                            if (wc) { sx = wc.x; sy = wc.y; }
+                        }
+                        if (c.to === 'node-ai' || c.to === 'node-rag') {
+                            const dstElem = document.getElementById(c.to);
+                            const wc = getWorldCoords(dstElem);
+                            if (wc) { dx = wc.x; dy = wc.y; }
+                        } else {
+                            const dstNode = nodesData.find(n => n.id === c.to);
+                            if (!dstNode) continue;
+                            dx = dstNode.x; dy = dstNode.y + 35;
+                            const dstElem = document.getElementById(c.to);
+                            if (dstElem) {
+                                const inPort = dstElem.querySelector('.port-socket');
+                                const wc = getWorldCoords(inPort);
+                                if (wc) { dx = wc.x; dy = wc.y; }
+                            }
+                        }
+                        
+                        if (dx !== undefined && dy !== undefined) {
+                            ctx.beginPath();
+                            ctx.moveTo(sx, sy);
+                            const midX = (sx + dx) / 2;
+                            ctx.bezierCurveTo(midX, sy, midX, dy, dx, dy);
+                            if (ctx.isPointInStroke(clickX, clickY)) {
+                                clickedConnection = i;
+                                break;
+                            }
+                        }
+                    }
+                    ctx.restore();
+                    
+                    if (clickedConnection !== -1) {
+                        showConfirmModal('선택하신 연결선을 삭제하시겠습니까?', () => {
+                            connections.splice(clickedConnection, 1);
+                            saveState();
+                            renderNodes();
+                        });
+                    }
+                }
+            });
+
+            document.getElementById('canvas-container').addEventListener('mousedown', (e) => {
+                if (e.target.id === 'canvas-container' || e.target.id === 'flowCanvas' || e.target.classList.contains('factory-bg-grid')) {
+                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+                    
+                    if (e.button === 0 && !e.ctrlKey && !e.metaKey) { // Left click
+                        isMarquee = true;
+                        marqueeStartX = ((e.clientX - cRect.left) - panX) / zoom;
+                        marqueeStartY = ((e.clientY - cRect.top) - panY) / zoom;
+                        marqueeEl.style.display = 'block';
+                        marqueeEl.style.left = marqueeStartX + 'px';
+                        marqueeEl.style.top = marqueeStartY + 'px';
+                        marqueeEl.style.width = '0px';
+                        marqueeEl.style.height = '0px';
+                        
+                        if (!e.shiftKey) {
+                            selectedNodeIds.clear();
+                            document.querySelectorAll('.n8n-node').forEach(n => n.classList.remove('selected'));
+                        }
+                    } else { // Right/Middle click
+                        isPanning = true;
+                        panStartX = (e.clientX - cRect.left) - panX;
+                        panStartY = (e.clientY - cRect.top) - panY;
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                isPanning = false;
+                if (isMarquee) {
+                    isMarquee = false;
+                    marqueeEl.style.display = 'none';
+                    if (selectedNodeIds.size === 1) {
+                        selectedNodeId = Array.from(selectedNodeIds)[0];
+                    } else if (selectedNodeIds.size === 0) {
+                        selectedNodeId = null;
+                    }
+                }
+            });
+
+            document.getElementById('canvas-container').addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomIntensity = 0.1;
+                const delta = e.deltaY < 0 ? 1 : -1;
+                const newZoom = Math.min(Math.max(0.2, zoom + delta * zoomIntensity), 3);
+                
+                const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+                const rx = e.clientX - cRect.left;
+                const ry = e.clientY - cRect.top;
+                
+                panX = rx - (rx - panX) * (newZoom / zoom);
+                panY = ry - (ry - panY) * (newZoom / zoom);
+                zoom = newZoom;
+                
+                updateTransform();
+            }, { passive: false });
+
             document.getElementById('canvas-container').addEventListener('mousemove', (e) => {
                 const cRect = document.getElementById('canvas-container').getBoundingClientRect();
-                mouseX = e.clientX - cRect.left;
-                mouseY = e.clientY - cRect.top;
+                const rx = e.clientX - cRect.left;
+                const ry = e.clientY - cRect.top;
+                
+                if (isPanning) {
+                    panX = rx - panStartX;
+                    panY = ry - panStartY;
+                    updateTransform();
+                } else if (isMarquee) {
+                    const currentX = (rx - panX) / zoom;
+                    const currentY = (ry - panY) / zoom;
+                    
+                    const left = Math.min(marqueeStartX, currentX);
+                    const top = Math.min(marqueeStartY, currentY);
+                    const width = Math.abs(currentX - marqueeStartX);
+                    const height = Math.abs(currentY - marqueeStartY);
+                    
+                    marqueeEl.style.left = left + 'px';
+                    marqueeEl.style.top = top + 'px';
+                    marqueeEl.style.width = width + 'px';
+                    marqueeEl.style.height = height + 'px';
+                    
+                    if (!e.shiftKey) selectedNodeIds.clear();
+                    nodesData.forEach(n => {
+                        if (n.x + 80 > left && n.x < left + width && n.y + 50 > top && n.y < top + height) {
+                            selectedNodeIds.add(n.id);
+                        }
+                    });
+                    
+                    document.querySelectorAll('.n8n-node').forEach(el => {
+                        if (selectedNodeIds.has(el.id)) el.classList.add('selected');
+                        else el.classList.remove('selected');
+                    });
+                }
+                
+                mouseX = (rx - panX) / zoom;
+                mouseY = (ry - panY) / zoom;
+                rawMouseX = rx;
+                rawMouseY = ry;
             });
 
             function renderNodes() {
                 container.innerHTML = '';
+                
+                const centralHub = document.getElementById('central-hub');
+                if (centralHub) {
+                    if (viewsData[currentViewId].hubPos) {
+                        centralHub.style.left = viewsData[currentViewId].hubPos.x + 'px';
+                        centralHub.style.top = viewsData[currentViewId].hubPos.y + 'px';
+                    } else {
+                        centralHub.style.left = '880px';
+                        centralHub.style.top = '150px';
+                    }
+                }
+
                 nodesData.forEach(node => {
-                    const isSelected = node.id === selectedNodeId;
+                    const isSelected = selectedNodeIds.has(node.id);
                     const elem = document.createElement('div');
                     elem.className = `n8n-node ${isSelected ? 'selected' : ''}`;
                     elem.id = node.id;
                     elem.style.left = node.x + 'px';
                     elem.style.top = node.y + 'px';
 
-                    const paramsHTML = node.params.map((p, idx) => `<span class="param-tag">${p} <span class="tag-del" onclick="removeParam('${node.id}', ${idx})">✕</span></span>`).join('');
-                    const partsHTML = node.parts.map((pt, idx) => `<span class="part-tag">🔧 ${pt} <span class="tag-del" onclick="removePart('${node.id}', ${idx})">✕</span></span>`).join('');
+                    const tagHTML = node.tag ? `<div class="micro-tag" style="background:rgba(52,211,153,0.15); color:#34D399; margin-bottom:2px;">${node.tag}</div>` : '';
+                    const processHTML = node.process ? `<div class="micro-tag" style="background:rgba(168,85,247,0.15); color:#A855F7; margin-bottom:2px;">${node.process}</div>` : '';
 
                     elem.innerHTML = `
-                        <div class="port-socket port-in" data-nodeid="${node.id}" data-type="in" title="입력 포트"></div>
-                        <div class="n8n-node-header">
-                            <div class="n8n-node-name"><span>${node.icon}</span> ${node.name}</div>
-                            <span class="node-delete-icon" onclick="deleteNodeById('${node.id}')" title="삭제">✕</span>
-                        </div>
-                        <div class="n8n-node-body">
-                            <div>${paramsHTML}</div>
-                            <div>${partsHTML}</div>
-                        </div>
-                        <div class="port-socket port-out" data-nodeid="${node.id}" data-type="out" title="출력 포트"></div>
+                        <div class="micro-box-name">${node.name}</div>
+                        ${tagHTML}
+                        ${processHTML}
+                        <div class="port-socket" data-nodeid="${node.id}" title="연결 포인트"></div>
                     `;
+                    
+                    if (node.isAnomalous) {
+                        elem.classList.add('anomalous');
+                    }
+
+                    elem.addEventListener('dblclick', (e) => {
+                        if (node.tag === 'Fab' || (node.params && node.params.includes('Fab'))) {
+                            navigateView(node.id);
+                        }
+                    });
+
+                    elem.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        selectedNodeId = node.id;
+                        openEditModal();
+                    });
 
                     elem.addEventListener('mousedown', (e) => {
                         if (e.target.classList.contains('tag-del') || e.target.classList.contains('node-delete-icon')) return;
@@ -582,62 +1199,97 @@ def render_process_visualization():
                         const portSocket = e.target.closest('.port-socket');
                         if (portSocket) {
                             const pNodeId = portSocket.getAttribute('data-nodeid');
-                            const pType = portSocket.getAttribute('data-type');
-                            if (pType === 'out') {
-                                wiringStartNodeId = pNodeId;
+                            wiringStartNodeId = pNodeId;
+                            
+                            function onPortMouseUp(upEvent) {
+                                const targetElem = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
+                                let targetNodeId = null;
                                 
-                                function onPortMouseUp(upEvent) {
-                                    const targetElem = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
-                                    let targetNodeId = null;
-                                    
-                                    if (targetElem) {
-                                        const inPort = targetElem.closest('.port-in');
-                                        if (inPort) {
-                                            targetNodeId = inPort.getAttribute('data-nodeid');
-                                        } else if (targetElem.closest('#node-ai')) {
-                                            targetNodeId = 'node-ai';
-                                        } else if (targetElem.closest('#node-rag')) {
-                                            targetNodeId = 'node-rag';
-                                        }
+                                if (targetElem) {
+                                    const inPort = targetElem.closest('.port-socket');
+                                    if (inPort) {
+                                        targetNodeId = inPort.getAttribute('data-nodeid');
+                                    } else if (targetElem.closest('#node-ai')) {
+                                        targetNodeId = 'node-ai';
+                                    } else if (targetElem.closest('#node-rag')) {
+                                        targetNodeId = 'node-rag';
                                     }
-                                    
-                                    if (targetNodeId && wiringStartNodeId !== targetNodeId) {
-                                        if (!connections.some(c => c.from === wiringStartNodeId && c.to === targetNodeId)) {
-                                            connections.push({ from: wiringStartNodeId, to: targetNodeId });
-                                            saveState();
-                                        }
-                                    }
-                                    wiringStartNodeId = null;
-                                    window.removeEventListener('mouseup', onPortMouseUp);
                                 }
-                                window.addEventListener('mouseup', onPortMouseUp);
-                            } else if (pType === 'in' && wiringStartNodeId && wiringStartNodeId !== pNodeId) {
-                                if (!connections.some(c => c.from === wiringStartNodeId && c.to === pNodeId)) {
-                                    connections.push({ from: wiringStartNodeId, to: pNodeId });
-                                    saveState();
+                                
+                                if (targetNodeId && wiringStartNodeId !== targetNodeId) {
+                                    if (!connections.some(c => (c.from === wiringStartNodeId && c.to === targetNodeId) || (c.from === targetNodeId && c.to === wiringStartNodeId))) {
+                                        connections.push({ from: wiringStartNodeId, to: targetNodeId });
+                                        saveState();
+                                    }
                                 }
                                 wiringStartNodeId = null;
+                                window.removeEventListener('mouseup', onPortMouseUp);
                             }
+                            window.addEventListener('mouseup', onPortMouseUp);
                             return;
                         }
 
-                        document.querySelectorAll('.n8n-node').forEach(n => n.classList.remove('selected'));
-                        elem.classList.add('selected');
-                        selectedNodeId = node.id;
+                        if (!selectedNodeIds.has(node.id)) {
+                            if (!e.shiftKey) {
+                                selectedNodeIds.clear();
+                            }
+                            selectedNodeIds.add(node.id);
+                            selectedNodeId = node.id;
+                            
+                            document.querySelectorAll('.n8n-node').forEach(el => {
+                                if (selectedNodeIds.has(el.id)) el.classList.add('selected');
+                                else el.classList.remove('selected');
+                            });
+                        }
 
                         const cRect = document.getElementById('canvas-container').getBoundingClientRect();
-                        const offsetX = e.clientX - (cRect.left + node.x);
-                        const offsetY = e.clientY - (cRect.top + node.y);
+                        const startMouseWorldX = ((e.clientX - cRect.left) - panX) / zoom;
+                        const startMouseWorldY = ((e.clientY - cRect.top) - panY) / zoom;
+                        
+                        const startPositions = new Map();
+                        selectedNodeIds.forEach(id => {
+                            const n = nodesData.find(nd => nd.id === id);
+                            if (n) startPositions.set(id, {x: n.x, y: n.y});
+                        });
 
                         function onMouseMove(moveEvent) {
-                            let newX = moveEvent.clientX - cRect.left - offsetX;
-                            let newY = moveEvent.clientY - cRect.top - offsetY;
+                            const curWorldX = ((moveEvent.clientX - cRect.left) - panX) / zoom;
+                            const curWorldY = ((moveEvent.clientY - cRect.top) - panY) / zoom;
+                            const dx = curWorldX - startMouseWorldX;
+                            const dy = curWorldY - startMouseWorldY;
 
-                            node.x = Math.max(10, Math.min(newX, cRect.width - 165));
-                            node.y = Math.max(10, Math.min(newY, cRect.height - 90));
-
-                            elem.style.left = node.x + 'px';
-                            elem.style.top = node.y + 'px';
+                            selectedNodeIds.forEach(id => {
+                                const n = nodesData.find(nd => nd.id === id);
+                                const startPos = startPositions.get(id);
+                                if (n && startPos) {
+                                    const el = document.getElementById(id);
+                                    let nodeW = 65;
+                                    let nodeH = 50;
+                                    if (el) {
+                                        nodeW = el.offsetWidth || 65;
+                                        nodeH = el.offsetHeight || 50;
+                                    }
+                                    
+                                    const gridSize = 40;
+                                    const dotOffset = gridSize / 2; // Dots are at center of 40x40 cells
+                                    
+                                    let targetX = startPos.x + dx;
+                                    let targetY = startPos.y + dy;
+                                    let targetCx = targetX + nodeW / 2;
+                                    let targetCy = targetY + nodeH / 2;
+                                    
+                                    let snappedCx = Math.round((targetCx - dotOffset) / gridSize) * gridSize + dotOffset;
+                                    let snappedCy = Math.round((targetCy - dotOffset) / gridSize) * gridSize + dotOffset;
+                                    
+                                    n.x = snappedCx - nodeW / 2;
+                                    n.y = snappedCy - nodeH / 2;
+                                    
+                                    if (el) {
+                                        el.style.left = n.x + 'px';
+                                        el.style.top = n.y + 'px';
+                                    }
+                                }
+                            });
                             saveState();
                         }
 
@@ -656,7 +1308,7 @@ def render_process_visualization():
 
             renderNodes();
 
-            function deleteNodeById(id) {
+            function performNodeDeletion(id) {
                 nodesData = nodesData.filter(n => n.id !== id);
                 connections = connections.filter(c => c.from !== id && c.to !== id);
                 if (selectedNodeId === id) {
@@ -664,6 +1316,28 @@ def render_process_visualization():
                 }
                 saveState();
                 renderNodes();
+            }
+
+            function deleteNodeById(id) {
+                const nodeToDelete = nodesData.find(n => n.id === id);
+                if (nodeToDelete && nodeToDelete.params && nodeToDelete.params.includes('Fab')) {
+                    if (viewsData[id] && viewsData[id].nodes && viewsData[id].nodes.length > 0) {
+                        showConfirmModal('이 공장(Fab) 내부에는 장비가 배치되어 있습니다. 정말로 공장과 내부 장비를 모두 삭제하시겠습니까?', () => {
+                            delete viewsData[id];
+                            performNodeDeletion(id);
+                        });
+                        return;
+                    }
+                    delete viewsData[id];
+                }
+                performNodeDeletion(id);
+            }
+
+            function deleteNodeFromModal() {
+                if (selectedNodeId) {
+                    deleteNodeById(selectedNodeId);
+                    closeModal('edit-modal');
+                }
             }
 
             function deleteSelectedNode() {
@@ -688,49 +1362,151 @@ def render_process_visualization():
                 }
             }
 
-            function resetToDefaults() {
-                localStorage.removeItem('rxm_nodes_data');
-                localStorage.removeItem('rxm_connections_data');
-                nodesData = JSON.parse(JSON.stringify(defaultNodes));
-                connections = JSON.parse(JSON.stringify(defaultConnections));
-                selectedNodeId = 'node-1';
-                wiringStartNodeId = null;
-                saveState();
-                renderNodes();
-            }
-
             function closeModal(modalId) {
+                if (modalId === 'edit-modal' && typeof clearChartState === 'function') {
+                    clearChartState();
+                }
                 document.getElementById(modalId).style.display = 'none';
             }
             function closeModalOnOverlay(e, modalId) {
                 if (e.target.id === modalId) closeModal(modalId);
             }
+            
+            let confirmActionCallback = null;
+            function showConfirmModal(message, callback) {
+                document.getElementById('confirm-modal-message').innerText = message;
+                confirmActionCallback = callback;
+                document.getElementById('confirm-modal').style.display = 'flex';
+            }
+            function executeConfirmAction() {
+                if (confirmActionCallback) confirmActionCallback();
+                closeModal('confirm-modal');
+            }
+            function manualSave() {
+                saveState();
+                const toast = document.getElementById('toast-message');
+                if (toast) {
+                    toast.classList.add('show');
+                    setTimeout(() => {
+                        toast.classList.remove('show');
+                    }, 2500);
+                }
+            }
+
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     closeModal('add-modal');
                     closeModal('edit-modal');
                     wiringStartNodeId = null;
                 }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                    e.preventDefault();
+                    manualSave();
+                }
+                if ((e.key === '`' || e.code === 'Backquote') && currentViewId !== 'main') {
+                    e.preventDefault();
+                    navigateView('main');
+                }
             });
 
-            function openAddNodeModal() { document.getElementById('add-modal').style.display = 'flex'; }
+            function openAddNodeModal() {
+                const title = document.getElementById('add-modal-title');
+                const tagInput = document.getElementById('node-tag-input');
+                const nameLabel = document.getElementById('add-modal-name-label');
+                const extraFields = document.getElementById('add-modal-extra-fields');
+                
+                document.getElementById('node-name-input').value = '';
+                
+                if (currentViewId === 'main') {
+                    if (title) title.innerText = '➕ 신규 공장 추가';
+                    if (nameLabel) nameLabel.innerText = '공장 이름';
+                    if (extraFields) extraFields.style.display = 'none';
+                    if (tagInput) { tagInput.value = 'Fab'; tagInput.disabled = true; }
+                } else {
+                    if (title) title.innerText = '➕ 신규 장비 추가';
+                    if (nameLabel) nameLabel.innerText = '장비 이름';
+                    if (extraFields) extraFields.style.display = 'block';
+                    if (tagInput) { tagInput.value = 'Etch'; tagInput.disabled = false; }
+                }
+                document.getElementById('node-process-input').value = '';
+                document.getElementById('node-add-param-input').value = '';
+                document.getElementById('node-add-part-input').value = '';
+                document.getElementById('add-modal').style.display = 'flex';
+            }
             function confirmAddNode() {
-                const name = document.getElementById('node-name-input').value || 'New Equipment';
-                const icon = document.getElementById('node-icon-input').value;
-                const newId = 'node-' + Date.now();
+                const name = document.getElementById('node-name-input').value || '새 장비';
+                const isFab = currentViewId === 'main';
+                const tagStr = isFab ? 'Fab' : (document.getElementById('node-tag-input').value || '');
+                const procStr = document.getElementById('node-process-input').value || '';
+                const icon = '';
+                
+                const newId = (isFab ? 'fab-' : 'node-') + Date.now();
+                // Calculate center of current screen in world coordinates
+                const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+                const centerX = ((cRect.width / 2) - panX) / zoom - 75;
+                const centerY = ((cRect.height / 2) - panY) / zoom - 30;
+
+                const gridSize = 40;
+                const dotOffset = gridSize / 2;
+                let nodeW = 65;
+                let nodeH = 50;
+
+                let targetX = centerX + ((nodesData.length % 5) * 15);
+                let targetY = centerY + ((nodesData.length % 5) * 15);
+                
+                let targetCx = targetX + nodeW / 2;
+                let targetCy = targetY + nodeH / 2;
+                
+                let snappedCx = Math.round((targetCx - dotOffset) / gridSize) * gridSize + dotOffset;
+                let snappedCy = Math.round((targetCy - dotOffset) / gridSize) * gridSize + dotOffset;
+                
+                let newX = snappedCx - nodeW / 2;
+                let newY = snappedCy - nodeH / 2;
+                
+                let paramStr = document.getElementById('node-add-param-input').value.trim();
+                let partStr = document.getElementById('node-add-part-input').value.trim();
+                
+                let initialParams = isFab ? ['Fab'] : [];
+                if (paramStr) {
+                    initialParams.push(...paramStr.split(',').map(s => s.trim()).filter(s => s));
+                } else if (!isFab) {
+                    initialParams.push('Status: OK');
+                }
+
+                let initialParts = isFab ? [] : [];
+                if (partStr) {
+                    initialParts.push(...partStr.split(',').map(s => s.trim()).filter(s => s));
+                } else if (!isFab) {
+                    initialParts.push('Standard Part');
+                }
+
                 nodesData.push({
                     id: newId,
                     name: name,
                     icon: icon,
-                    x: 40 + ((nodesData.length % 5) * 25),
-                    y: 80 + ((nodesData.length % 5) * 20),
-                    params: ['Status: OK'],
-                    parts: ['Standard Part']
+                    tag: tagStr,
+                    process: procStr,
+                    x: newX,
+                    y: newY,
+                    params: initialParams,
+                    parts: initialParts
                 });
                 selectedNodeId = newId;
                 saveState();
                 renderNodes();
                 closeModal('add-modal');
+            }
+
+            function switchEditTab(tabName) {
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(tc => {
+                    tc.classList.remove('active');
+                    tc.style.display = '';
+                });
+                const tBtn = document.getElementById(`tab-btn-${tabName}`);
+                if (tBtn) tBtn.classList.add('active');
+                const tContent = document.getElementById(`tab-content-${tabName}`);
+                if (tContent) tContent.classList.add('active');
             }
 
             function openEditModal() {
@@ -739,13 +1515,135 @@ def render_process_visualization():
                     alert('편집할 장비 노드를 먼저 선택해주세요.');
                     return;
                 }
-                document.getElementById('modal-selected-name').innerText = `선택된 장비: ${node.icon} ${node.name}`;
+                const titleEl = document.getElementById('modal-selected-name');
+                titleEl.innerHTML = `
+                    <span id="edit-node-name-text" style="cursor: pointer;" title="더블클릭하여 이름 수정">${node.name}</span>
+                    <input id="edit-node-name-input" type="text" style="display:none; font-size:0.9rem; font-weight:700; color:#34D399; padding:0; margin:0; width:150px; background:transparent; border:none; border-bottom:1px solid #34D399; outline:none;" value="${node.name}">
+                `;
+
+                const textSpan = document.getElementById('edit-node-name-text');
+                const nameInput = document.getElementById('edit-node-name-input');
+                
+                textSpan.addEventListener('dblclick', () => {
+                    textSpan.style.display = 'none';
+                    nameInput.style.display = 'inline-block';
+                    nameInput.focus();
+                });
+                
+                nameInput.addEventListener('blur', () => {
+                    if (nameInput.value.trim() !== '') {
+                        textSpan.innerText = nameInput.value;
+                    }
+                    nameInput.style.display = 'none';
+                    textSpan.style.display = 'inline-block';
+                });
+                
+                nameInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') nameInput.blur();
+                });
+                
+                const tagInput = document.getElementById('edit-tag-input');
+                const tabContainer = document.getElementById('edit-tab-container');
+                const fabContent = document.getElementById('fab-edit-content');
+                
+                const modalBox = document.querySelector('#edit-modal .modal-box');
+                const leftCol = document.getElementById('edit-modal-left');
+                const rightCol = document.getElementById('edit-modal-right');
+                
+                if (currentViewId === 'main') {
+                    tagInput.value = 'Fab';
+                    tagInput.disabled = true;
+                    if (tabContainer) tabContainer.style.display = 'none';
+                    if (fabContent) fabContent.style.display = 'block';
+                    
+                    // Shrink modal for Fab view (hide sensor column)
+                    if (modalBox) modalBox.style.width = '400px';
+                    if (leftCol) leftCol.style.display = 'none';
+                    if (rightCol) rightCol.style.width = '100%';
+
+                    document.querySelectorAll('#edit-modal .tab-content').forEach(tc => {
+                        tc.classList.remove('active');
+                        tc.style.display = 'none';
+                    });
+                    
+                    const internalNodes = viewsData[node.id] && viewsData[node.id].nodes ? viewsData[node.id].nodes : [];
+                    const fabList = document.getElementById('fab-internal-nodes-list');
+                    if (fabList) {
+                        fabList.innerHTML = internalNodes.length > 0 
+                            ? internalNodes.map(n => `<div style="font-size: 0.75rem; color: #E2E8F0; padding: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;"><span>${n.name}</span><span style="color:#94A3B8; font-size:0.65rem;">${n.tag || ''}</span></div>`).join('')
+                            : '<div style="font-size:0.7rem; color:#94A3B8; padding: 10px; text-align:center;">내부에 장비가 없습니다.</div>';
+                    }
+                } else {
+                    tagInput.value = node.tag || 'Etch';
+                    tagInput.disabled = false;
+                    if (tabContainer) tabContainer.style.display = 'flex';
+                    if (fabContent) fabContent.style.display = 'none';
+                    
+                    // Widen modal for Equipment view (show sensor column)
+                    if (modalBox) modalBox.style.width = '850px';
+                    if (leftCol) leftCol.style.display = 'flex';
+                    if (rightCol) rightCol.style.width = 'auto';
+
+                    document.querySelectorAll('#edit-modal .tab-content').forEach(tc => tc.style.display = '');
+                    switchEditTab('info');
+                    
+                    const uploadInput = document.getElementById('sensor-csv-upload');
+                    let badgeContainer = document.getElementById('test-case-active-badge');
+                    
+                    if (node.testCsvData) {
+                        if (uploadInput) uploadInput.style.display = 'none';
+                        if (!badgeContainer) {
+                            badgeContainer = document.createElement('div');
+                            badgeContainer.id = 'test-case-active-badge';
+                            badgeContainer.style.cssText = 'background: rgba(52, 211, 153, 0.2); border: 1px solid #34D399; color: #34D399; padding: 8px; border-radius: 6px; font-size: 0.8rem; text-align: center; margin-bottom: 10px; font-weight: 700;';
+                            badgeContainer.innerText = '✅ 테스트 시나리오 자동 연동 중';
+                            const leftContainer = document.getElementById('edit-modal-left');
+                            leftContainer.insertBefore(badgeContainer, document.getElementById('sensor-chart-container'));
+                        } else {
+                            badgeContainer.style.display = 'block';
+                        }
+                        
+                        setTimeout(() => startChartWithCSV(node.testCsvData), 100);
+                    } else {
+                        if (uploadInput) uploadInput.style.display = 'block';
+                        if (badgeContainer) badgeContainer.style.display = 'none';
+                        
+                        if (node.manualCsvData) {
+                            setTimeout(() => startChartWithCSV(node.manualCsvData), 100);
+                        }
+                    }
+                }
+                
+                let displayAddr = node.address || '';
+                if (displayAddr.startsWith('step_')) displayAddr = displayAddr.replace('step_', '');
+                document.getElementById('edit-address-input').value = displayAddr;
+                
+                document.getElementById('edit-process-input').value = node.process || '';
+                
+                const incList = document.getElementById('current-incoming-list');
+                const outList = document.getElementById('current-outgoing-list');
+                
+                const incConns = connections.filter(c => c.to === node.id);
+                const outConns = connections.filter(c => c.from === node.id);
+                
+                incList.innerHTML = incConns.map(c => {
+                    const fromNode = nodesData.find(n => n.id === c.from) || {name: c.from};
+                    return `<div class="conn-search-item"><span>${fromNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">✕</span></div>`;
+                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">이전 공정 없음</div>';
+                
+                outList.innerHTML = outConns.map(c => {
+                    const toNode = nodesData.find(n => n.id === c.to) || {name: c.to};
+                    return `<div class="conn-search-item"><span>${toNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">✕</span></div>`;
+                }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">이후 공정 없음</div>';
+                
+                document.getElementById('conn-search-input').value = '';
+                document.getElementById('conn-search-results').style.display = 'none';
                 
                 const pContainer = document.getElementById('current-params-list');
                 pContainer.innerHTML = node.params.map((p, idx) => `<span class="param-tag">${p} <span class="tag-del" onclick="removeParamModal('${node.id}', ${idx})">✕</span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 파라미터 없음</span>';
 
                 const ptContainer = document.getElementById('current-parts-list');
-                ptContainer.innerHTML = node.parts.map((pt, idx) => `<span class="part-tag">🔧 ${pt} <span class="tag-del" onclick="removePartModal('${node.id}', ${idx})">✕</span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 하위 부품 없음</span>';
+                ptContainer.innerHTML = node.parts.map((pt, idx) => `<span class="part-tag">${pt} <span class="tag-del" onclick="removePartModal('${node.id}', ${idx})">✕</span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 하위 부품 없음</span>';
 
                 document.getElementById('param-input').value = '';
                 document.getElementById('part-input').value = '';
@@ -762,9 +1660,65 @@ def render_process_visualization():
                 openEditModal();
             }
 
+            function removeConnModal(fromId, toId) {
+                connections = connections.filter(c => !(c.from === fromId && c.to === toId));
+                saveState();
+                renderNodes();
+                openEditModal();
+            }
+
+            function addConnModal(fromId, toId) {
+                if (!connections.some(c => (c.from === fromId && c.to === toId))) {
+                    connections.push({ from: fromId, to: toId });
+                    saveState();
+                    renderNodes();
+                }
+                openEditModal();
+                document.getElementById('conn-search-input').value = '';
+                document.getElementById('conn-search-results').style.display = 'none';
+            }
+
+            document.getElementById('conn-search-input').addEventListener('input', function(e) {
+                const val = e.target.value.toLowerCase().trim();
+                const resDiv = document.getElementById('conn-search-results');
+                if (!val) {
+                    resDiv.style.display = 'none';
+                    return;
+                }
+                
+                const matches = nodesData.filter(n => n.id !== selectedNodeId && n.name.toLowerCase().includes(val));
+                if (matches.length === 0) {
+                    resDiv.innerHTML = '<div style="padding:0.5rem; font-size:0.65rem; color:#64748B; text-align:center;">결과 없음</div>';
+                } else {
+                    resDiv.innerHTML = matches.map(m => `
+                        <div class="conn-search-item">
+                            <span>${m.name}</span>
+                            <div class="conn-search-actions">
+                                <button class="conn-search-action" onclick="addConnModal('${m.id}', '${selectedNodeId}')">이전 공정 추가</button>
+                                <button class="conn-search-action out" onclick="addConnModal('${selectedNodeId}', '${m.id}')">이후 공정 추가</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                resDiv.style.display = 'block';
+            });
+
             function confirmEditNode() {
                 const node = nodesData.find(n => n.id === selectedNodeId);
                 if (node) {
+                    const nameInput = document.getElementById('edit-node-name-input');
+                    if (nameInput && nameInput.value.trim() !== '') {
+                        node.name = nameInput.value;
+                    }
+                    node.tag = currentViewId === 'main' ? 'Fab' : document.getElementById('edit-tag-input').value;
+                    
+                    let addrVal = document.getElementById('edit-address-input').value.trim();
+                    if (addrVal && !addrVal.startsWith('step_')) {
+                        addrVal = 'step_' + addrVal;
+                    }
+                    node.address = addrVal;
+                    
+                    node.process = document.getElementById('edit-process-input').value;
                     const paramVal = document.getElementById('param-input').value;
                     const partVal = document.getElementById('part-input').value;
                     if (paramVal) node.params.push(paramVal);
@@ -777,6 +1731,16 @@ def render_process_visualization():
 
             // Dynamic Data Particles
             let particles = [];
+            function getWorldCoords(elem) {
+                if (!elem) return null;
+                const r = elem.getBoundingClientRect();
+                const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+                return {
+                    x: ((r.left - cRect.left + r.width / 2) - panX) / zoom,
+                    y: ((r.top - cRect.top + r.height / 2) - panY) / zoom
+                };
+            }
+
             function syncParticles() {
                 particles = particles.filter(p => connections.some(c => c.from === p.from && c.to === p.to));
                 connections.forEach(c => {
@@ -789,7 +1753,7 @@ def render_process_visualization():
                             from: c.from,
                             to: c.to,
                             color: pColor,
-                            speed: 0.008 + Math.random() * 0.006,
+                            speed: 0.002 + Math.random() * 0.0015,
                             t: Math.random()
                         });
                     }
@@ -797,60 +1761,63 @@ def render_process_visualization():
             }
 
             function drawCables() {
-                const cRect = document.getElementById('canvas-container').getBoundingClientRect();
-
                 // 1. Draw Connections (Equipment, AI, RAG)
                 connections.forEach(c => {
                     const srcNode = nodesData.find(n => n.id === c.from);
                     if (!srcNode) return;
                     
                     const srcElem = document.getElementById(c.from);
-                    let sx = srcNode.x + 150, sy = srcNode.y + 35;
+                    let sx = srcNode.x + 75, sy = srcNode.y + 30;
                     let dx, dy;
                     
                     if (srcElem) {
-                        const outPort = srcElem.querySelector('.port-out');
-                        if (outPort) {
-                            const outR = outPort.getBoundingClientRect();
-                            sx = outR.left - cRect.left + outR.width / 2;
-                            sy = outR.top - cRect.top + outR.height / 2;
-                        }
+                        const outPort = srcElem.querySelector('.port-socket');
+                        const wc = getWorldCoords(outPort);
+                        if (wc) { sx = wc.x; sy = wc.y; }
                     }
 
                     if (c.to === 'node-ai' || c.to === 'node-rag') {
                         const dstElem = document.getElementById(c.to);
-                        if (dstElem) {
-                            const dstR = dstElem.getBoundingClientRect();
-                            dx = dstR.left - cRect.left + dstR.width / 2;
-                            dy = dstR.top - cRect.top + dstR.height / 2;
-                        }
+                        const wc = getWorldCoords(dstElem);
+                        if (wc) { dx = wc.x; dy = wc.y; }
                     } else {
                         const dstNode = nodesData.find(n => n.id === c.to);
                         if (!dstNode) return;
                         dx = dstNode.x; dy = dstNode.y + 35;
                         const dstElem = document.getElementById(c.to);
                         if (dstElem) {
-                            const inPort = dstElem.querySelector('.port-in');
-                            if (inPort) {
-                                const inR = inPort.getBoundingClientRect();
-                                dx = inR.left - cRect.left + inR.width / 2;
-                                dy = inR.top - cRect.top + inR.height / 2;
-                            }
+                            const inPort = dstElem.querySelector('.port-socket');
+                            const wc = getWorldCoords(inPort);
+                            if (wc) { dx = wc.x; dy = wc.y; }
                         }
                     }
 
                     if (dx !== undefined && dy !== undefined) {
                         ctx.save();
-                        if (c.to === 'node-ai') ctx.strokeStyle = 'rgba(248, 113, 113, 0.7)';
-                        else if (c.to === 'node-rag') ctx.strokeStyle = 'rgba(192, 132, 252, 0.7)';
-                        else ctx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
-                        
-                        ctx.lineWidth = 2.5;
-                        ctx.setLineDash([5, 5]);
                         ctx.beginPath();
                         ctx.moveTo(sx, sy);
                         const midX = (sx + dx) / 2;
                         ctx.bezierCurveTo(midX, sy, midX, dy, dx, dy);
+                        
+                        ctx.save();
+                        ctx.lineWidth = 15;
+                        const isHovered = ctx.isPointInStroke(rawMouseX, rawMouseY);
+                        ctx.restore();
+
+                        if (isHovered) {
+                            ctx.strokeStyle = '#FDE047';
+                            ctx.lineWidth = 4;
+                            ctx.shadowBlur = 12;
+                            ctx.shadowColor = '#FDE047';
+                            ctx.setLineDash([]);
+                        } else {
+                            if (c.to === 'node-ai') ctx.strokeStyle = 'rgba(248, 113, 113, 0.7)';
+                            else if (c.to === 'node-rag') ctx.strokeStyle = 'rgba(192, 132, 252, 0.7)';
+                            else ctx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
+                            ctx.lineWidth = 2.5;
+                            ctx.setLineDash([5, 5]);
+                        }
+                        
                         ctx.stroke();
                         ctx.restore();
                     }
@@ -860,38 +1827,35 @@ def render_process_visualization():
                 if (wiringStartNodeId) {
                     const srcElem = document.getElementById(wiringStartNodeId);
                     if (srcElem) {
-                        const outPort = srcElem.querySelector('.port-out');
-                        if (outPort) {
-                            const outR = outPort.getBoundingClientRect();
-                            const sx = outR.left - cRect.left + outR.width / 2;
-                            const sy = outR.top - cRect.top + outR.height / 2;
-
+                        const outPort = srcElem.querySelector('.port-socket');
+                        const wc = getWorldCoords(outPort);
+                        if (wc) {
                             ctx.save();
-                            ctx.strokeStyle = '#F5D996';
-                            ctx.lineWidth = 3;
+                            ctx.strokeStyle = 'rgba(245, 217, 150, 0.8)';
+                            ctx.lineWidth = 2.5;
                             ctx.setLineDash([4, 4]);
                             ctx.beginPath();
-                            ctx.moveTo(sx, sy);
-                            const midX = (sx + mouseX) / 2;
-                            ctx.bezierCurveTo(midX, sy, midX, mouseY, mouseX, mouseY);
+                            ctx.moveTo(wc.x, wc.y);
+                            const midX = (wc.x + mouseX) / 2;
+                            ctx.bezierCurveTo(midX, wc.y, midX, mouseY, mouseX, mouseY);
                             ctx.stroke();
                             ctx.restore();
                         }
                     }
                 }
 
-                // 3. RAG Node (Purple) -> AI Node (Red) Knowledge Injection Stream
+                // 3. Central Hub internal connections
                 const ragElem = document.getElementById('node-rag');
                 const aiElem = document.getElementById('node-ai');
-
                 if (ragElem && aiElem) {
                     const ragR = ragElem.getBoundingClientRect();
                     const aiR = aiElem.getBoundingClientRect();
+                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
 
-                    const ragX = ragR.left - cRect.left + ragR.width / 2;
-                    const ragY = ragR.top - cRect.top + ragR.height;
-                    const aiX = aiR.left - cRect.left + aiR.width / 2;
-                    const aiY = aiR.top - cRect.top;
+                    const ragX = ((ragR.left - cRect.left + ragR.width / 2) - panX) / zoom;
+                    const ragY = ((ragR.top - cRect.top + ragR.height) - panY) / zoom;
+                    const aiX = ((aiR.left - cRect.left + aiR.width / 2) - panX) / zoom;
+                    const aiY = ((aiR.top - cRect.top) - panY) / zoom;
 
                     // Vertical connection between RAG and AI
                     ctx.save();
@@ -910,6 +1874,12 @@ def render_process_visualization():
 
             function animate() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Apply Pan and Zoom to Canvas context
+                ctx.save();
+                ctx.translate(panX, panY);
+                ctx.scale(zoom, zoom);
+
                 drawCables();
 
                 // Dynamic Equipment Particles
@@ -922,39 +1892,28 @@ def render_process_visualization():
                     if (!srcNode) return;
 
                     const srcElem = document.getElementById(p.from);
-                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
-                    
-                    let sx = srcNode.x + 150, sy = srcNode.y + 35;
+                    let sx = srcNode.x + 75, sy = srcNode.y + 30;
                     let dx, dy;
 
                     if (srcElem) {
-                        const outPort = srcElem.querySelector('.port-out');
-                        if (outPort) {
-                            const outR = outPort.getBoundingClientRect();
-                            sx = outR.left - cRect.left + outR.width / 2;
-                            sy = outR.top - cRect.top + outR.height / 2;
-                        }
+                        const outPort = srcElem.querySelector('.port-socket');
+                        const wc = getWorldCoords(outPort);
+                        if (wc) { sx = wc.x; sy = wc.y; }
                     }
 
                     if (p.to === 'node-ai' || p.to === 'node-rag') {
                         const dstElem = document.getElementById(p.to);
-                        if (dstElem) {
-                            const dstR = dstElem.getBoundingClientRect();
-                            dx = dstR.left - cRect.left + dstR.width / 2;
-                            dy = dstR.top - cRect.top + dstR.height / 2;
-                        }
+                        const wc = getWorldCoords(dstElem);
+                        if (wc) { dx = wc.x; dy = wc.y; }
                     } else {
                         const dstNode = nodesData.find(n => n.id === p.to);
                         if (!dstNode) return;
                         dx = dstNode.x; dy = dstNode.y + 35;
                         const dstElem = document.getElementById(p.to);
                         if (dstElem) {
-                            const inPort = dstElem.querySelector('.port-in');
-                            if (inPort) {
-                                const inR = inPort.getBoundingClientRect();
-                                dx = inR.left - cRect.left + inR.width / 2;
-                                dy = inR.top - cRect.top + inR.height / 2;
-                            }
+                            const inPort = dstElem.querySelector('.port-socket');
+                            const wc = getWorldCoords(inPort);
+                            if (wc) { dx = wc.x; dy = wc.y; }
                         }
                     }
                     
@@ -964,8 +1923,6 @@ def render_process_visualization():
                     const mt = 1 - t;
                     const midX = (sx + dx) / 2;
                     
-                    // Cubic Bezier matching the line:
-                    // P0 = (sx, sy), P1 = (midX, sy), P2 = (midX, dy), P3 = (dx, dy)
                     const x = (mt*mt*mt)*sx + 3*(mt*mt)*t*midX + 3*mt*(t*t)*midX + (t*t*t)*dx;
                     const y = (mt*mt*mt)*sy + 3*(mt*mt)*t*sy + 3*mt*(t*t)*dy + (t*t*t)*dy;
 
@@ -979,11 +1936,362 @@ def render_process_visualization():
                     ctx.restore();
                 });
 
+                // Restore Canvas context
+                ctx.restore();
+
                 requestAnimationFrame(animate);
             }
 
             animate();
+            
+            // Hub Draggable Logic
+            const centralHub = document.getElementById('central-hub');
+            if (centralHub) {
+                centralHub.addEventListener('mousedown', (e) => {
+                    const cRect = document.getElementById('canvas-container').getBoundingClientRect();
+                    const startMouseWorldX = ((e.clientX - cRect.left) - panX) / zoom;
+                    const startMouseWorldY = ((e.clientY - cRect.top) - panY) / zoom;
+                    
+                    if (!viewsData[currentViewId].hubPos) {
+                        viewsData[currentViewId].hubPos = {
+                            x: parseFloat(centralHub.style.left) || 880,
+                            y: parseFloat(centralHub.style.top) || 150
+                        };
+                    }
+                    const startHubX = viewsData[currentViewId].hubPos.x;
+                    const startHubY = viewsData[currentViewId].hubPos.y;
+                    
+                    function onMouseMove(moveEvent) {
+                        const curWorldX = ((moveEvent.clientX - cRect.left) - panX) / zoom;
+                        const curWorldY = ((moveEvent.clientY - cRect.top) - panY) / zoom;
+                        const dx = curWorldX - startMouseWorldX;
+                        const dy = curWorldY - startMouseWorldY;
+                        
+                        const targetX = startHubX + dx;
+                        const targetY = startHubY + dy;
+                        
+                        const hubW = centralHub.offsetWidth || 100;
+                        const hubH = centralHub.offsetHeight || 150;
+                        
+                        const gridSize = 40;
+                        const dotOffset = gridSize / 2;
+                        
+                        const targetCx = targetX + hubW / 2;
+                        const targetCy = targetY + hubH / 2;
+                        
+                        const snappedCx = Math.round((targetCx - dotOffset) / gridSize) * gridSize + dotOffset;
+                        const snappedCy = Math.round((targetCy - dotOffset) / gridSize) * gridSize + dotOffset;
+                        
+                        viewsData[currentViewId].hubPos.x = snappedCx - hubW / 2;
+                        viewsData[currentViewId].hubPos.y = snappedCy - hubH / 2;
+                        
+                        centralHub.style.left = viewsData[currentViewId].hubPos.x + 'px';
+                        centralHub.style.top = viewsData[currentViewId].hubPos.y + 'px';
+                    }
+                    
+                    function onMouseUp() {
+                        window.removeEventListener('mousemove', onMouseMove);
+                        window.removeEventListener('mouseup', onMouseUp);
+                        saveState();
+                    }
+                    
+                    window.addEventListener('mousemove', onMouseMove);
+                    window.addEventListener('mouseup', onMouseUp);
+                });
+            }
+
+            // Chart Streaming Logic
+            let sensorChart = null;
+            let streamInterval = null;
+            
+            function clearChartState() {
+                if (streamInterval) clearInterval(streamInterval);
+                if (sensorChart) {
+                    sensorChart.destroy();
+                    sensorChart = null;
+                }
+                const uploadInput = document.getElementById('sensor-csv-upload');
+                if (uploadInput) uploadInput.value = '';
+            }
+
+            function applyTestCase(caseName) {
+                if (viewsData['fab-cmos'] && viewsData['fab-cmos'].nodes) {
+                    viewsData['fab-cmos'].nodes.forEach(node => {
+                        if (caseName && preloadedDatasets[caseName]) {
+                            let csvData = null;
+                            if (node.address && preloadedDatasets[caseName][node.address]) {
+                                csvData = preloadedDatasets[caseName][node.address];
+                            } else if (node.stepId && preloadedDatasets[caseName]['step_' + node.stepId]) {
+                                csvData = preloadedDatasets[caseName]['step_' + node.stepId];
+                            } else {
+                                csvData = preloadedDatasets[caseName][node.name] || preloadedDatasets[caseName][node.name.replace(/ /g, '_')];
+                            }
+                            
+                            if (csvData) {
+                                node.testCsvData = csvData;
+                                // 3-point moving average anomaly detection
+                                const lines = csvData.trim().split('\\n');
+                                if (lines.length > 1) {
+                                    const headers = lines[0].split(',');
+                                    const skipCols = ['Timestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', ''];
+                                    const numCols = [];
+                                    headers.forEach((h, i) => {
+                                        if (!skipCols.includes(h.trim())) numCols.push(i);
+                                    });
+                                    
+                                    // Parse numeric rows
+                                    const dataRows = [];
+                                    for (let i = 1; i < lines.length; i++) {
+                                        const row = lines[i].split(',');
+                                        if (row.length === headers.length) {
+                                            const r = {};
+                                            numCols.forEach(idx => { r[idx] = parseFloat(row[idx].trim()); });
+                                            dataRows.push(r);
+                                        }
+                                    }
+                                    
+                                    // 3-point moving average per column, then flag rows where any col deviates > 3sigma
+                                    const statuses = dataRows.map((_, ri) => {
+                                        let anomalous = false;
+                                        for (const colIdx of numCols) {
+                                            const window = [];
+                                            for (let w = Math.max(0, ri - 2); w <= ri; w++) {
+                                                const v = dataRows[w][colIdx];
+                                                if (!isNaN(v)) window.push(v);
+                                            }
+                                            if (window.length < 2) continue;
+                                            const avg = window.reduce((a, b) => a + b, 0) / window.length;
+                                            const std = Math.sqrt(window.reduce((a, b) => a + (b - avg) ** 2, 0) / window.length);
+                                            const current = dataRows[ri][colIdx];
+                                            if (!isNaN(current) && std > 0 && Math.abs(current - avg) > 3 * std) {
+                                                anomalous = true;
+                                                break;
+                                            }
+                                        }
+                                        return anomalous;
+                                    });
+                                    node._parsedStatusData = statuses;
+                                }
+                            } else {
+                                node.testCsvData = null;
+                                node._parsedStatusData = null;
+                            }
+                        } else {
+                            node.testCsvData = null;
+                            node._parsedStatusData = null;
+                        }
+                    });
+                    saveState();
+                    if (currentViewId === 'fab-cmos') {
+                        renderNodes();
+                    }
+                }
+            }
+
+            // Global Anomaly Tracking Interval
+            if (window.globalAnomalyInterval) clearInterval(window.globalAnomalyInterval);
+            window.globalAnomalyInterval = setInterval(() => {
+                if (!window.simulationStartTime || !viewsData[currentViewId] || !viewsData[currentViewId].nodes) return;
+                
+                const msPerPoint = 500;
+                const elapsedMs = Date.now() - window.simulationStartTime;
+                
+                let anyChanged = false;
+                viewsData[currentViewId].nodes.forEach(node => {
+                    const statuses = node._parsedStatusData;
+                    if (statuses && statuses.length > 0) {
+                        const currentRow = Math.floor(elapsedMs / msPerPoint) % statuses.length;
+                        const isAnomalous = statuses[currentRow] === true;
+                        if (node.isAnomalous !== isAnomalous) {
+                            node.isAnomalous = isAnomalous;
+                            anyChanged = true;
+                        }
+                    } else if (node.isAnomalous) {
+                        node.isAnomalous = false;
+                        anyChanged = true;
+                    }
+                });
+                
+                if (anyChanged) {
+                    renderNodes();
+                }
+            }, 100);
+
+            function startChartWithCSV(text) {
+                const lines = text.trim().split('\\n');
+                if (lines.length < 2) return;
+                
+                const headers = lines[0].split(',');
+                
+                // Identify data columns (ignore Timestamp, Step_ID, Step_Name, Status, Phase, Address)
+                const skipCols = ['Timestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', ''];
+                const dataColIndices = [];
+                const datasets = [];
+                
+                const colors = ['#34D399', '#A855F7', '#FBBF24', '#60A5FA', '#F472B6', '#EF4444', '#F97316'];
+                
+                headers.forEach((h, idx) => {
+                    const colName = h.trim();
+                    if (!skipCols.includes(colName)) {
+                        dataColIndices.push(idx);
+                        datasets.push({
+                            label: colName,
+                            data: [],
+                            borderColor: colors[(dataColIndices.length - 1) % colors.length],
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            pointRadius: [],
+                            pointBackgroundColor: [],
+                            pointHoverRadius: 5,
+                            tension: 0.1
+                        });
+                    }
+                });
+                
+                const timeIndex = headers.findIndex(h => h.trim() === 'Timestamp');
+                
+                // Prepare data array
+                const fullData = [];
+                for(let i=1; i<lines.length; i++) {
+                    const row = lines[i].split(',');
+                    if (row.length === headers.length) {
+                        fullData.push(row);
+                    }
+                }
+                
+                clearChartState();
+                
+                const ctx = document.getElementById('sensorChart').getContext('2d');
+                sensorChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 100 },
+                        plugins: {
+                            legend: {
+                                labels: { color: '#E2E8F0', font: { size: 10 } }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(15,23,42,0.9)',
+                                titleColor: '#34D399',
+                                bodyColor: '#F8FAFC'
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#94A3B8', maxTicksLimit: 8 },
+                                grid: { color: 'rgba(255,255,255,0.05)' }
+                            },
+                            y: {
+                                ticks: { color: '#94A3B8' },
+                                grid: { color: 'rgba(255,255,255,0.05)' }
+                            }
+                        }
+                    }
+                });
+                
+                // Continuous Streaming Simulation
+                if (!window.simulationStartTime) window.simulationStartTime = Date.now();
+                const msPerPoint = 500;
+                const maxPoints = 30;
+                
+                let lastRenderedRow = -1;
+                
+                streamInterval = setInterval(() => {
+                    if (fullData.length === 0) return;
+                    
+                    const elapsedMs = Date.now() - window.simulationStartTime;
+                    const currentRow = Math.floor(elapsedMs / msPerPoint) % fullData.length;
+                    
+                    if (currentRow !== lastRenderedRow) {
+                        // Pre-fill history if this is the very first render after opening modal
+                        // Helper: compute 3-point moving avg anomaly for a dataset
+                        function isAnomalyPoint(dsData, val) {
+                            const win = dsData.slice(-2).concat([val]).filter(v => !isNaN(v));
+                            if (win.length < 2) return false;
+                            const avg = win.reduce((a, b) => a + b, 0) / win.length;
+                            const std = Math.sqrt(win.reduce((a, b) => a + (b - avg) ** 2, 0) / win.length);
+                            return std > 0 && Math.abs(val - avg) > 3 * std;
+                        }
+
+                        if (lastRenderedRow === -1) {
+                            const fillCount = Math.min(maxPoints, fullData.length);
+                            for (let i = fillCount - 1; i >= 0; i--) {
+                                let r = (currentRow - i + fullData.length) % fullData.length;
+                                const row = fullData[r];
+                                const timestamp = timeIndex >= 0 ? row[timeIndex].split(' ')[1] : r.toString();
+                                sensorChart.data.labels.push(timestamp);
+                                dataColIndices.forEach((colIdx, dsIdx) => {
+                                    const val = parseFloat(row[colIdx]);
+                                    const ds = sensorChart.data.datasets[dsIdx];
+                                    const anom = isAnomalyPoint(ds.data, val);
+                                    ds.data.push(val);
+                                    ds.pointBackgroundColor.push(anom ? '#EF4444' : 'transparent');
+                                    ds.pointRadius.push(anom ? 5 : 2);
+                                });
+                            }
+                            sensorChart.update();
+                            lastRenderedRow = currentRow;
+                            return;
+                        }
+                        
+                        const row = fullData[currentRow];
+                        const timestamp = timeIndex >= 0 ? row[timeIndex].split(' ')[1] : currentRow.toString();
+                        
+                        sensorChart.data.labels.push(timestamp);
+                        if (sensorChart.data.labels.length > maxPoints) {
+                            sensorChart.data.labels.shift();
+                        }
+                        
+                        dataColIndices.forEach((colIdx, dsIdx) => {
+                            const val = parseFloat(row[colIdx]);
+                            const ds = sensorChart.data.datasets[dsIdx];
+                            const anom = isAnomalyPoint(ds.data, val);
+                            ds.data.push(val);
+                            ds.pointBackgroundColor.push(anom ? '#EF4444' : 'transparent');
+                            ds.pointRadius.push(anom ? 5 : 2);
+                            if (ds.data.length > maxPoints) {
+                                ds.data.shift();
+                                ds.pointBackgroundColor.shift();
+                                ds.pointRadius.shift();
+                            }
+                        });
+                        
+                        sensorChart.update();
+                        lastRenderedRow = currentRow;
+                    }
+                }, 100); // Fast poll to stay in perfect global sync
+            }
+
+            const csvInput = document.getElementById('sensor-csv-upload');
+            if (csvInput) {
+                csvInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        const csvText = evt.target.result;
+                        const node = nodesData.find(n => n.id === selectedNodeId);
+                        if (node) {
+                            node.manualCsvData = csvText;
+                            saveState();
+                        }
+                        startChartWithCSV(csvText);
+                    };
+                    reader.readAsText(file);
+                });
+            }
+
         </script>
+        <div class="toast" id="toast-message">위치와 연결이 성공적으로 저장되었습니다!</div>
     </body>
     </html>
     """
