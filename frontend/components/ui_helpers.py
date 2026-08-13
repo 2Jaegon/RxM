@@ -65,6 +65,10 @@ def apply_custom_css():
 
     /* MAIN CONTENT AREA */
     .main-content { padding: 0.5rem 1rem; }
+    
+    iframe.stIFrame {
+        height: 85vh !important;
+    }
 
     /* CHAT MESSAGES */
     .chat-topbar { padding-bottom: 0.8rem; margin-bottom: 1rem; border-bottom: 1px solid #2D2F31; }

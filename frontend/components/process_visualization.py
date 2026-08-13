@@ -621,8 +621,45 @@ def render_process_visualization():
                             <span id="sensor-csv-filename" style="font-size: 0.75rem; color: #94A3B8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">선택된 파일 없음</span>
                         </div>
                         <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="display: none;">
-                        <div id="sensor-chart-container" style="flex: 1; min-height: 380px; width: 100%; margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; position: relative;">
-                            <canvas id="sensorChart"></canvas>
+                        <div style="display: flex; gap: 15px; flex: 1.5; min-height: 250px; margin-top: 10px; width: 100%;">
+                            <div id="sensor-chart-container" style="flex: 1.5; min-height: 200px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; position: relative;">
+                                <canvas id="sensorChart"></canvas>
+                            </div>
+                            <div id="sensor-table-container" style="flex: 1; min-height: 200px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(52, 211, 153, 0.3); border-radius: 6px; padding: 10px; overflow-y: auto;">
+                                <div style="font-size: 0.75rem; color: #34D399; font-weight: bold; margin-bottom: 8px;">실시간 수치 (Real-time)</div>
+                                <table style="width: 100%; color: #E2E8F0; font-size: 0.65rem; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="border-bottom: 1px solid rgba(52, 211, 153, 0.3); text-align: left;">
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left; width: 30px;">
+                                                <input type="checkbox" id="sensor-check-all" checked onchange="toggleAllSensorDatasets(this.checked)" style="cursor: pointer;">
+                                            </th>
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left;">항목</th>
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left;">Target</th>
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left;">Current</th>
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left;">Min</th>
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left;">Max</th>
+                                            <th style="padding: 4px; padding-bottom: 8px; text-align: left;">단위</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sensor-data-table-body">
+                                        <tr><td colspan="6" style="padding: 8px; text-align: center; color: #94A3B8;">대기 중...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="sensor-fail-log-container" style="flex: 1; min-height: 150px; margin-top: 15px; width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 10px; overflow-y: auto;">
+                            <div style="font-size: 0.75rem; color: #EF4444; font-weight: bold; margin-bottom: 8px;">Fail Log</div>
+                            <table style="width: 100%; color: #E2E8F0; font-size: 0.65rem; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid rgba(239, 68, 68, 0.4); text-align: left;">
+                                        <th style="padding: 4px; padding-bottom: 8px; width: 140px;">Date-Time</th>
+                                        <th style="padding: 4px; padding-bottom: 8px; width: 200px;">Failed Param (Value / Range)</th>
+                                        <th style="padding: 4px; padding-bottom: 8px;">All Recorded Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sensor-fail-log-body">
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
@@ -1576,13 +1613,13 @@ def render_process_visualization():
                     // Adjust modal layout based on editModalMode
                     if (modalBox) {
                         if (window.editModalMode === 'chart') {
-                            modalBox.style.width = '550px';
+                            modalBox.style.width = '95vw';
                         } else if (window.editModalMode === 'edit') {
-                            modalBox.style.width = '450px';
+                            modalBox.style.width = '95vw';
                         } else {
-                            modalBox.style.width = '850px';
+                            modalBox.style.width = '95vw';
                         }
-                        modalBox.style.height = Math.min(window.innerHeight * 0.88, 680) + 'px';
+                        modalBox.style.height = '95vh';
                         modalBox.style.display = 'flex';
                         modalBox.style.flexDirection = 'column';
                         modalBox.style.overflow = 'hidden';
@@ -2211,6 +2248,114 @@ def render_process_visualization():
                 
                 clearChartState();
                 
+                window.lastFailTimestamp = null;
+                const logBody = document.getElementById('sensor-fail-log-body');
+                if (logBody) logBody.innerHTML = '';
+                
+                window.currentStats = {};
+                const valuesByPhase = {};
+                dataColIndices.forEach(colIdx => valuesByPhase[colIdx] = {});
+                
+                for(let i=0; i<fullData.length; i++) {
+                    const row = fullData[i];
+                    const phase = phaseIndex >= 0 ? row[phaseIndex].trim() : 'DEFAULT';
+                    
+                    dataColIndices.forEach(colIdx => {
+                        let v = parseFloat(row[colIdx]);
+                        if (!isNaN(v)) {
+                            if (!valuesByPhase[colIdx][phase]) valuesByPhase[colIdx][phase] = [];
+                            valuesByPhase[colIdx][phase].push(v);
+                        }
+                    });
+                }
+                
+                dataColIndices.forEach((colIdx) => {
+                    const colNameRaw = headers[colIdx].trim();
+                    const parts = colNameRaw.split('_');
+                    let unit = parts.length > 1 ? parts.pop() : '-';
+                    let name = parts.join('_');
+                    
+                    let phaseStats = {};
+                    for (const [phase, vals] of Object.entries(valuesByPhase[colIdx])) {
+                        let mean = vals.reduce((a,b) => a+b, 0) / (vals.length || 1);
+                        let spread = Math.abs(mean) * 0.03;
+                        if (spread === 0) spread = 0.01;
+                        
+                        phaseStats[phase] = {
+                            target: mean,
+                            min: mean - spread,
+                            max: mean + spread
+                        };
+                    }
+                    
+                    let allVals = [];
+                    Object.values(valuesByPhase[colIdx]).forEach(arr => allVals.push(...arr));
+                    let globalMean = allVals.reduce((a,b) => a+b, 0) / (allVals.length || 1);
+                    let globalSpread = Math.abs(globalMean) * 0.03;
+                    if (globalSpread === 0) globalSpread = 0.01;
+                    
+                    phaseStats['DEFAULT'] = {
+                        target: globalMean,
+                        min: globalMean - globalSpread,
+                        max: globalMean + globalSpread
+                    };
+                    
+                    window.currentStats[colIdx] = {
+                        name: name,
+                        unit: unit,
+                        phaseStats: phaseStats
+                    };
+                });
+                
+                window.toggleSensorDataset = function(dsIdx, isChecked) {
+                    if (sensorChart && sensorChart.data.datasets[dsIdx]) {
+                        sensorChart.data.datasets[dsIdx].hidden = !isChecked;
+                        sensorChart.update();
+                        
+                        const allChecked = sensorChart.data.datasets.every(ds => !ds.hidden);
+                        const checkAll = document.getElementById('sensor-check-all');
+                        if (checkAll) checkAll.checked = allChecked;
+                    }
+                };
+                
+                window.toggleAllSensorDatasets = function(isChecked) {
+                    if (sensorChart) {
+                        sensorChart.data.datasets.forEach((ds) => {
+                            ds.hidden = !isChecked;
+                        });
+                        sensorChart.update();
+                        
+                        document.querySelectorAll('input[id^="sensor-check-"]').forEach(cb => {
+                            if (cb.id !== 'sensor-check-all') {
+                                cb.checked = isChecked;
+                            }
+                        });
+                    }
+                };
+
+                const tbodyInit = document.getElementById('sensor-data-table-body');
+                if (tbodyInit) {
+                    let htmlRowsInit = '';
+                    dataColIndices.forEach((colIdx, dsIdx) => {
+                        const statConfig = window.currentStats[colIdx];
+                        const stat = statConfig.phaseStats['DEFAULT'];
+                        htmlRowsInit += `
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);" id="sensor-row-${colIdx}">
+                                <td style="padding: 6px 4px; text-align: left;">
+                                    <input type="checkbox" id="sensor-check-${colIdx}" checked onchange="toggleSensorDataset(${dsIdx}, this.checked)" style="margin-right: 5px; cursor: pointer;">
+                                </td>
+                                <td style="padding: 6px 4px; word-break: break-all; text-align: left;">${statConfig.name}</td>
+                                <td id="sensor-target-${colIdx}" style="padding: 6px 4px; text-align: left; color: #94A3B8;">${stat.target.toFixed(2)}</td>
+                                <td id="sensor-val-${colIdx}" style="padding: 6px 4px; text-align: left; color: #34D399; font-weight: bold;">-</td>
+                                <td id="sensor-min-${colIdx}" style="padding: 6px 4px; text-align: left; color: #94A3B8;">${stat.min.toFixed(2)}</td>
+                                <td id="sensor-max-${colIdx}" style="padding: 6px 4px; text-align: left; color: #94A3B8;">${stat.max.toFixed(2)}</td>
+                                <td style="padding: 6px 4px; text-align: left; color: #64748B;">${statConfig.unit}</td>
+                            </tr>
+                        `;
+                    });
+                    tbodyInit.innerHTML = htmlRowsInit;
+                }
+                
                 const ctx = document.getElementById('sensorChart').getContext('2d');
                 sensorChart = new Chart(ctx, {
                     type: 'line',
@@ -2263,6 +2408,50 @@ def render_process_visualization():
 
 
                 
+                function updateRealTimeTable(currentRowData, timestamp, currentPhase) {
+                    const logBody = document.getElementById('sensor-fail-log-body');
+                    
+                    let hasFail = false;
+                    let failMessages = [];
+                    let allDataStr = [];
+                    
+                    dataColIndices.forEach((colIdx) => {
+                        const val = parseFloat(currentRowData[colIdx]);
+                        const statConfig = window.currentStats[colIdx];
+                        const stat = statConfig.phaseStats[currentPhase] || statConfig.phaseStats['DEFAULT'];
+                        
+                        const targetCell = document.getElementById(`sensor-target-${colIdx}`);
+                        const minCell = document.getElementById(`sensor-min-${colIdx}`);
+                        const maxCell = document.getElementById(`sensor-max-${colIdx}`);
+                        const valCell = document.getElementById(`sensor-val-${colIdx}`);
+                        
+                        if (targetCell) targetCell.textContent = stat.target.toFixed(2);
+                        if (minCell) minCell.textContent = stat.min.toFixed(2);
+                        if (maxCell) maxCell.textContent = stat.max.toFixed(2);
+                        if (valCell) valCell.textContent = !isNaN(val) ? val.toFixed(2) : '-';
+                        
+                        allDataStr.push(`${statConfig.name}: ${!isNaN(val) ? val.toFixed(2) : '-'}`);
+                        if (!isNaN(val) && (val < stat.min || val > stat.max) && currentPhase !== 'RAMP') {
+                            hasFail = true;
+                            failMessages.push(`${statConfig.name} (${val.toFixed(2)} / ${stat.min.toFixed(2)}~${stat.max.toFixed(2)})`);
+                        }
+                    });
+                    
+                    if (hasFail && logBody) {
+                        if (window.lastFailTimestamp !== timestamp) {
+                            window.lastFailTimestamp = timestamp;
+                            const tr = document.createElement('tr');
+                            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                            tr.innerHTML = `
+                                <td style="padding: 6px 4px; white-space: nowrap;">${timestamp}</td>
+                                <td style="padding: 6px 4px; color: #EF4444; font-weight:bold;">${failMessages.join('<br>')}</td>
+                                <td style="padding: 6px 4px; font-size: 0.6rem; color: #94A3B8; word-break: break-all;">${allDataStr.join(', ')}</td>
+                            `;
+                            logBody.prepend(tr);
+                        }
+                    }
+                }
+
                 // Continuous Streaming Simulation
                 if (!window.simulationStartTime) window.simulationStartTime = Date.now();
                 const msPerPoint = 500;
@@ -2306,6 +2495,11 @@ def render_process_visualization():
                             }
                             sensorChart.update();
                             lastRenderedRow = currentRow;
+
+                            // Update real-time table
+                            const tstamp = timeIndex >= 0 ? fullData[currentRow][timeIndex] : currentRow.toString();
+                            const rPhase1 = phaseIndex >= 0 ? fullData[currentRow][phaseIndex].trim() : 'DEFAULT';
+                            updateRealTimeTable(fullData[currentRow], tstamp, rPhase1);
                             return;
                         }
                         
@@ -2334,6 +2528,11 @@ def render_process_visualization():
                         
                         sensorChart.update();
                         lastRenderedRow = currentRow;
+
+                        // Update real-time table
+                        const tstamp2 = timeIndex >= 0 ? fullData[currentRow][timeIndex] : currentRow.toString();
+                        const rPhase2 = phaseIndex >= 0 ? fullData[currentRow][phaseIndex].trim() : 'DEFAULT';
+                        updateRealTimeTable(fullData[currentRow], tstamp2, rPhase2);
                     }
                 }, 100); // Fast poll to stay in perfect global sync
             }
