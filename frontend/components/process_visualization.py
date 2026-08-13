@@ -145,20 +145,6 @@ def render_process_visualization():
                 pointer-events: none;
             }
 
-            .factory-badge {
-                position: absolute;
-                top: 12px;
-                left: 14px;
-                background: rgba(16, 185, 129, 0.15);
-                border: 1px solid rgba(52, 211, 153, 0.4);
-                color: #34D399;
-                padding: 0.25rem 0.7rem;
-                border-radius: 14px;
-                font-size: 0.7rem;
-                font-weight: 800;
-                letter-spacing: 0.05em;
-                z-index: 2;
-            }
 
             /* Compact Central Intelligence Core Hub */
             .central-hub {
@@ -250,7 +236,6 @@ def render_process_visualization():
             .n8n-node:hover {
                 border-color: #34D399;
                 box-shadow: 0 6px 20px rgba(52, 211, 153, 0.2);
-                transform: translateY(-2px);
             }
             .n8n-node.selected {
                 border-color: #3B82F6;
@@ -547,7 +532,7 @@ def render_process_visualization():
         <!-- Factory Canvas Area -->
         <div class="factory-canvas" id="canvas-container">
             <div class="factory-bg-grid"></div>
-            <div class="factory-badge">FACTORY AREA</div>
+
 
             <!-- Zoom Wrapper for DOM Elements -->
             <div id="zoom-wrapper" style="transform-origin: 0 0; width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10;">
