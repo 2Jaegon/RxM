@@ -236,6 +236,7 @@ def render_process_visualization():
             .n8n-node:hover {
                 border-color: #34D399;
                 box-shadow: 0 6px 20px rgba(52, 211, 153, 0.2);
+                transform: translateY(-2px);
             }
             .n8n-node.selected {
                 border-color: #3B82F6;
@@ -615,7 +616,11 @@ def render_process_visualization():
                     <!-- Left Column (Sensor Data) -->
                     <div id="edit-modal-left" style="flex: 1.5; display: flex; flex-direction: column; min-width: 450px;">
                         <label style="font-size:0.75rem; color:#34D399; margin-bottom: 0.5rem; display: block; font-weight: bold;"> 실시간 센서 데이터 (CSV)</label>
-                        <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="padding: 0.2rem; cursor: pointer; color: #E2E8F0; font-size: 0.75rem;">
+                        <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.6); padding: 4px 8px; border: 1px solid rgba(52, 211, 153, 0.3); border-radius: 4px; margin-bottom: 4px;">
+                            <button type="button" onclick="document.getElementById('sensor-csv-upload').click()" style="padding: 4px 8px; font-size: 0.7rem; background: rgba(52, 211, 153, 0.15); border: 1px solid #34D399; color: #34D399; border-radius: 4px; cursor: pointer; white-space: nowrap;">파일 선택</button>
+                            <span id="sensor-csv-filename" style="font-size: 0.75rem; color: #94A3B8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">선택된 파일 없음</span>
+                        </div>
+                        <input type="file" id="sensor-csv-upload" accept=".csv" class="modal-input" style="display: none;">
                         <div id="sensor-chart-container" style="flex: 1; min-height: 380px; width: 100%; margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; position: relative;">
                             <canvas id="sensorChart"></canvas>
                         </div>
@@ -1167,14 +1172,18 @@ def render_process_visualization():
                     elem.addEventListener('dblclick', (e) => {
                         if (node.tag === 'Fab' || (node.params && node.params.includes('Fab'))) {
                             navigateView(node.id);
+                        } else {
+                            selectedNodeId = node.id;
+                            window.editModalMode = 'chart';
+                            openEditModal();
                         }
                     });
 
                     elem.addEventListener('contextmenu', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        
                         selectedNodeId = node.id;
+                        window.editModalMode = 'edit';
                         openEditModal();
                     });
 
@@ -1564,42 +1573,79 @@ def render_process_visualization():
                     if (tabContainer) tabContainer.style.display = 'flex';
                     if (fabContent) fabContent.style.display = 'none';
                     
-                    // Widen modal for Equipment view (show sensor column)
+                    // Adjust modal layout based on editModalMode
                     if (modalBox) {
-                        modalBox.style.width = '850px';
+                        if (window.editModalMode === 'chart') {
+                            modalBox.style.width = '550px';
+                        } else if (window.editModalMode === 'edit') {
+                            modalBox.style.width = '450px';
+                        } else {
+                            modalBox.style.width = '850px';
+                        }
                         modalBox.style.height = Math.min(window.innerHeight * 0.88, 680) + 'px';
                         modalBox.style.display = 'flex';
                         modalBox.style.flexDirection = 'column';
                         modalBox.style.overflow = 'hidden';
                     }
-                    if (leftCol) leftCol.style.display = 'flex';
-                    if (rightCol) rightCol.style.width = 'auto';
+                    
+                    if (window.editModalMode === 'chart') {
+                        if (leftCol) leftCol.style.display = 'flex';
+                        if (rightCol) rightCol.style.display = 'none';
+                    } else if (window.editModalMode === 'edit') {
+                        if (leftCol) leftCol.style.display = 'none';
+                        if (rightCol) {
+                            rightCol.style.display = 'flex';
+                            rightCol.style.width = '100%';
+                        }
+                    } else {
+                        if (leftCol) leftCol.style.display = 'flex';
+                        if (rightCol) {
+                            rightCol.style.display = 'flex';
+                            rightCol.style.width = 'auto';
+                        }
+                    }
 
 
                     document.querySelectorAll('#edit-modal .tab-content').forEach(tc => tc.style.display = '');
                     switchEditTab('info');
                     
                     const uploadInput = document.getElementById('sensor-csv-upload');
+                    const uploadFilename = document.getElementById('sensor-csv-filename');
                     let badgeContainer = document.getElementById('test-case-active-badge');
                     
-                    if (node.testCsvData) {
-                        if (uploadInput) uploadInput.style.display = 'none';
-                        if (!badgeContainer) {
-                            badgeContainer = document.createElement('div');
-                            badgeContainer.id = 'test-case-active-badge';
-                            badgeContainer.style.cssText = 'background: rgba(52, 211, 153, 0.2); border: 1px solid #34D399; color: #34D399; padding: 8px; border-radius: 6px; font-size: 0.8rem; text-align: center; margin-bottom: 10px; font-weight: 700;';
-                            badgeContainer.innerText = '✅ 테스트 시나리오 자동 연동 중';
-                            const leftContainer = document.getElementById('edit-modal-left');
-                            leftContainer.insertBefore(badgeContainer, document.getElementById('sensor-chart-container'));
+                    if (uploadFilename) {
+                        if (node.testCsvData && node.testCsvName) {
+                            uploadFilename.innerText = node.testCsvName;
+                            uploadFilename.style.color = '#34D399';
+                        } else if (node.manualCsvData && node.manualCsvName) {
+                            uploadFilename.innerText = node.manualCsvName;
+                            uploadFilename.style.color = '#34D399';
                         } else {
-                            badgeContainer.style.display = 'block';
+                            uploadFilename.innerText = '선택된 파일 없음';
+                            uploadFilename.style.color = '#94A3B8';
                         }
-                        
+                    }
+                    if (uploadInput) {
+                        uploadInput.value = '';
+                        try {
+                            if (node.testCsvData && node.testCsvName) {
+                                const file = new File([node.testCsvData], node.testCsvName, { type: 'text/csv' });
+                                const dt = new DataTransfer();
+                                dt.items.add(file);
+                                uploadInput.files = dt.files;
+                            } else if (node.manualCsvData && node.manualCsvName) {
+                                const file = new File([node.manualCsvData], node.manualCsvName, { type: 'text/csv' });
+                                const dt = new DataTransfer();
+                                dt.items.add(file);
+                                uploadInput.files = dt.files;
+                            }
+                        } catch(e) {}
+                    }
+                    if (badgeContainer) badgeContainer.style.display = 'none';
+                    
+                    if (node.testCsvData) {
                         setTimeout(() => startChartWithCSV(node.testCsvData), 100);
                     } else {
-                        if (uploadInput) uploadInput.style.display = 'block';
-                        if (badgeContainer) badgeContainer.style.display = 'none';
-                        
                         if (node.manualCsvData) {
                             setTimeout(() => startChartWithCSV(node.manualCsvData), 100);
                         }
@@ -2011,16 +2057,24 @@ def render_process_visualization():
                     viewsData['fab-cmos'].nodes.forEach(node => {
                         if (caseName && preloadedDatasets[caseName]) {
                             let csvData = null;
+                            let matchedName = null;
                             if (node.address && preloadedDatasets[caseName][node.address]) {
                                 csvData = preloadedDatasets[caseName][node.address];
+                                matchedName = node.address + '.csv';
                             } else if (node.stepId && preloadedDatasets[caseName]['step_' + node.stepId]) {
                                 csvData = preloadedDatasets[caseName]['step_' + node.stepId];
-                            } else {
-                                csvData = preloadedDatasets[caseName][node.name] || preloadedDatasets[caseName][node.name.replace(/ /g, '_')];
+                                matchedName = 'step_' + node.stepId + '.csv';
+                            } else if (preloadedDatasets[caseName][node.name]) {
+                                csvData = preloadedDatasets[caseName][node.name];
+                                matchedName = node.name + '.csv';
+                            } else if (preloadedDatasets[caseName][node.name.replace(/ /g, '_')]) {
+                                csvData = preloadedDatasets[caseName][node.name.replace(/ /g, '_')];
+                                matchedName = node.name.replace(/ /g, '_') + '.csv';
                             }
                             
                             if (csvData) {
                                 node.testCsvData = csvData;
+                                node.testCsvName = matchedName;
                                 // 3-point moving average anomaly detection
                                 const lines = csvData.trim().split('\\n');
                                 if (lines.length > 1) {
@@ -2066,10 +2120,12 @@ def render_process_visualization():
                                 }
                             } else {
                                 node.testCsvData = null;
+                                node.testCsvName = null;
                                 node._parsedStatusData = null;
                             }
                         } else {
                             node.testCsvData = null;
+                            node.testCsvName = null;
                             node._parsedStatusData = null;
                         }
                     });
@@ -2201,32 +2257,7 @@ def render_process_visualization():
                             }
                         }
                     },
-                    plugins: [{
-                        id: 'phaseDots',
-                        afterDraw(chart) {
-                            const scale = chart.scales.x;
-                            const c = chart.ctx;
-                            const phaseColors = { 'A': '#34D399', 'I': '#60A5FA', 'R': '#FBBF24' };
-                            c.save();
-                            scale.ticks.forEach((tick, i) => {
-                                const idx = tick.value;
-                                const rawLbl = chart.data.labels[idx];
-                                const phase = Array.isArray(rawLbl) ? rawLbl[1] : null;
-                                if (!phase || !phaseColors[phase]) return;
-                                const x = scale.getPixelForTick(i);
-                                // Draw dot just above x-axis line, inside chart area
-                                const y = chart.chartArea.bottom - 6;
-                                c.beginPath();
-                                c.arc(x, y, 4, 0, Math.PI * 2);
-                                c.fillStyle = phaseColors[phase];
-                                c.shadowBlur = 6;
-                                c.shadowColor = phaseColors[phase];
-                                c.fill();
-                                c.shadowBlur = 0;
-                            });
-                            c.restore();
-                        }
-                    }]
+                    plugins: []
 
                 });
 
@@ -2319,6 +2350,12 @@ def render_process_visualization():
                         const node = nodesData.find(n => n.id === selectedNodeId);
                         if (node) {
                             node.manualCsvData = csvText;
+                            node.manualCsvName = file.name;
+                            const uploadFilename = document.getElementById('sensor-csv-filename');
+                            if (uploadFilename) {
+                                uploadFilename.innerText = file.name;
+                                uploadFilename.style.color = '#34D399';
+                            }
                             saveState();
                         }
                         startChartWithCSV(csvText);
