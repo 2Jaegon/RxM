@@ -11,7 +11,9 @@ def render_process_visualization():
     dataset_dirs = {
         'case1': 'dataset_case1_normal',
         'case2': 'dataset_case2_global_cascade',
-        'case3': 'dataset_case3_selective_cascade'
+        'case3': 'dataset_case3_selective_cascade',
+        'case4': 'dataset_case4_early_spike',
+        'case5': 'dataset_case5_late_drift'
     }
     
     preloaded_datasets = {}
@@ -25,16 +27,31 @@ def render_process_visualization():
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
                             content = f.read()
-                            lines = content.split('\n')
-                            if len(lines) > 1 and lines[1].strip():
-                                cols = lines[1].split(',')
-                                if len(cols) > 2:
-                                    step_id = cols[1].strip()
-                                    step_name = cols[2].strip()
-                                    step_name_space = step_name.replace("_", " ")
-                                    preloaded_datasets[case_name][step_id] = content
+                            lines = [l.strip() for l in content.split('\n') if l.strip()]
+                            if len(lines) > 1:
+                                headers = [h.replace('\ufeff', '').strip() for h in lines[0].split(',')]
+                                cols = [c.strip() for c in lines[1].split(',')]
+                                
+                                addr_idx = headers.index('Address') if 'Address' in headers else (headers.index('Step_ID') if 'Step_ID' in headers else -1)
+                                name_idx = headers.index('Step_Name') if 'Step_Name' in headers else -1
+                                
+                                if addr_idx >= 0 and len(cols) > addr_idx:
+                                    step_addr = cols[addr_idx]
+                                    preloaded_datasets[case_name][step_addr] = content
+                                    
+                                if name_idx >= 0 and len(cols) > name_idx:
+                                    step_name = cols[name_idx]
                                     preloaded_datasets[case_name][step_name] = content
-                                    preloaded_datasets[case_name][step_name_space] = content
+                                    preloaded_datasets[case_name][step_name.replace("_", " ")] = content
+                                    
+                                file_base = os.path.splitext(filename)[0]
+                                preloaded_datasets[case_name][file_base] = content
+                                preloaded_datasets[case_name][file_base.replace("_", " ")] = content
+                                # Also index by number prefix e.g. "05" or "step_05"
+                                parts = file_base.split('_')
+                                if parts:
+                                    preloaded_datasets[case_name][parts[0]] = content
+                                    preloaded_datasets[case_name]["step_" + parts[0]] = content
                     except Exception as e:
                         pass
                         
@@ -244,13 +261,210 @@ def render_process_visualization():
             }
             .n8n-node.anomalous {
                 border-color: #EF4444 !important;
-                box-shadow: 0 0 20px rgba(239, 68, 68, 0.8) !important;
-                animation: pulse-red 1.5s infinite;
+                box-shadow: 0 0 25px rgba(239, 68, 68, 0.95), inset 0 0 10px rgba(239, 68, 68, 0.4) !important;
+                animation: pulse-red 1.2s infinite ease-in-out;
             }
             @keyframes pulse-red {
-                0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
-                50% { box-shadow: 0 0 30px rgba(239, 68, 68, 1); }
-                100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
+                0% {
+                    box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), inset 0 0 5px rgba(239, 68, 68, 0.2);
+                    border-color: #EF4444;
+                }
+                50% {
+                    box-shadow: 0 0 35px rgba(239, 68, 68, 1), inset 0 0 15px rgba(239, 68, 68, 0.6);
+                    border-color: #FF7875;
+                }
+                100% {
+                    box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), inset 0 0 5px rgba(239, 68, 68, 0.2);
+                    border-color: #EF4444;
+                }
+            }
+
+            .node-alarm-badge {
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                background: #EF4444;
+                color: #FFFFFF;
+                font-size: 0.46rem;
+                font-weight: 800;
+                padding: 1px 4px;
+                border-radius: 4px;
+                border: 1px solid #FFA39E;
+                box-shadow: 0 0 10px rgba(239, 68, 68, 0.9);
+                animation: badge-blink 0.8s infinite alternate ease-in-out;
+                z-index: 20;
+                pointer-events: none;
+            }
+            @keyframes badge-blink {
+                0% { opacity: 0.75; transform: scale(0.92); }
+                100% { opacity: 1; transform: scale(1.08); }
+            }
+
+            .fail-unresolved-badge {
+                font-size: 0.62rem;
+                font-weight: 700;
+                padding: 2px 7px;
+                border-radius: 4px;
+                background: rgba(239, 68, 68, 0.2);
+                color: #F87171;
+                border: 1px solid rgba(239, 68, 68, 0.4);
+            }
+            .fail-unresolved-badge.all-clear {
+                background: rgba(52, 211, 153, 0.15);
+                color: #34D399;
+                border-color: rgba(52, 211, 153, 0.3);
+            }
+            .btn-resolve-all {
+                background: rgba(52, 211, 153, 0.15);
+                border: 1px solid rgba(52, 211, 153, 0.4);
+                color: #34D399;
+                font-size: 0.62rem;
+                font-weight: 700;
+                padding: 3px 8px;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+            }
+            .btn-resolve-all:hover {
+                background: #34D399;
+                color: #052E16;
+                box-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
+            }
+            .btn-resolve-action {
+                background: #1E293B;
+                border: 1px solid #34D399;
+                color: #34D399;
+                font-size: 0.6rem;
+                font-weight: 700;
+                padding: 3px 7px;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+            }
+            .btn-resolve-action:hover {
+                background: #34D399;
+                color: #052E16;
+                box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+            }
+            .badge-resolved {
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                font-size: 0.58rem;
+                font-weight: 600;
+                color: #34D399;
+                background: rgba(52, 211, 153, 0.1);
+                border: 1px solid rgba(52, 211, 153, 0.25);
+                padding: 2px 6px;
+                border-radius: 4px;
+            }
+
+            .micro-lot-badge {
+                font-size: 0.44rem;
+                color: #38BDF8;
+                background: rgba(56, 189, 248, 0.12);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                padding: 1px 3px;
+                border-radius: 3px;
+                max-width: 100%;
+                white-space: nowrap;
+                text-align: center;
+                margin-top: 2px;
+                font-family: monospace;
+            }
+            .micro-lot-badge.lot-fail {
+                color: #EF4444;
+                background: rgba(239, 68, 68, 0.25);
+                border-color: #EF4444;
+                font-weight: 800;
+                animation: badge-blink 0.8s infinite alternate ease-in-out;
+            }
+
+            .lot-trace-link {
+                color: #38BDF8;
+                cursor: pointer;
+                text-decoration: underline;
+                transition: color 0.15s ease;
+            }
+            .lot-trace-link:hover {
+                color: #7DD3FC;
+                text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+            }
+
+            /* Lot Traceability Timeline Styles */
+            .lot-trace-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                gap: 10px;
+                max-height: 480px;
+                overflow-y: auto;
+                padding: 10px;
+                background: rgba(15, 23, 42, 0.5);
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .lot-step-card {
+                background: #1E293B;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 8px;
+                padding: 8px 10px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                transition: transform 0.15s ease, border-color 0.15s ease;
+            }
+            .lot-step-card:hover {
+                transform: translateY(-2px);
+                border-color: #38BDF8;
+            }
+            .lot-step-card.status-ok {
+                border-left: 3px solid #34D399;
+            }
+            .lot-step-card.status-origin {
+                border-left: 4px solid #EF4444;
+                background: rgba(239, 68, 68, 0.1);
+                box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+            }
+            .lot-step-card.status-cascade {
+                border-left: 4px solid #F59E0B;
+                background: rgba(245, 158, 11, 0.08);
+            }
+            .lot-step-num {
+                font-size: 0.62rem;
+                font-weight: 800;
+                color: #94A3B8;
+            }
+            .lot-step-title {
+                font-size: 0.75rem;
+                font-weight: 700;
+                color: #F8FAFC;
+            }
+            .lot-step-badge {
+                font-size: 0.58rem;
+                font-weight: 700;
+                padding: 1px 5px;
+                border-radius: 4px;
+                width: fit-content;
+            }
+            .lot-step-badge.badge-ok {
+                background: rgba(52, 211, 153, 0.15);
+                color: #34D399;
+                border: 1px solid rgba(52, 211, 153, 0.3);
+            }
+            .lot-step-badge.badge-origin {
+                background: #EF4444;
+                color: #FFFFFF;
+                border: 1px solid #FFA39E;
+            }
+            .lot-step-badge.badge-cascade {
+                background: rgba(245, 158, 11, 0.2);
+                color: #FBBF24;
+                border: 1px solid rgba(245, 158, 11, 0.4);
+            }
+            .lot-step-desc {
+                font-size: 0.62rem;
+                color: #94A3B8;
+                line-height: 1.3;
             }
 
             .micro-box-icon {
@@ -516,15 +730,18 @@ def render_process_visualization():
             <!-- Test Scenario Selector -->
             <div style="display:flex; align-items:center; gap: 10px; margin-left: 20px; flex-grow: 1;">
                 <label style="font-size:0.75rem; color:#94A3B8;">테스트 시나리오:</label>
-                <select id="test-case-selector" class="modal-input" onchange="applyTestCase(this.value)" style="width: 180px; padding: 0.2rem; background: rgba(15, 23, 42, 0.8); margin: 0;">
+                <select id="test-case-selector" class="modal-input" onchange="applyTestCase(this.value)" style="width: 250px; padding: 0.2rem 0.4rem; background: rgba(15, 23, 42, 0.8); margin: 0; font-size: 0.72rem;">
                     <option value="">적용 안함 (수동 업로드)</option>
-                    <option value="case1">Case 1: Normal</option>
-                    <option value="case2">Case 2: Global Cascade</option>
-                    <option value="case3">Case 3: Selective Cascade</option>
+                    <option value="case1">Case 1: 정상 공정 (Baseline Normal)</option>
+                    <option value="case2">Case 2: 전역 연쇄 불량 (Global Cascade - 중기)</option>
+                    <option value="case3">Case 3: 선택적 연쇄 불량 (Selective Cascade - 후기)</option>
+                    <option value="case4">Case 4: 초기 돌발 불량 (Early Transient Defect - 초기)</option>
+                    <option value="case5">Case 5: 후기 점진 열화 불량 (Late Progressive Drift - 후기)</option>
                 </select>
             </div>
 
             <div class="toolbar-actions">
+                <button class="tb-btn" onclick="openLotTraceModal()" style="border-color: #38BDF8; color: #38BDF8; margin-right: 4px;">🔍 Lot 공정 추적</button>
                 <button class="tb-btn" id="btn-save" onclick="manualSave()" style="margin-right: 4px;">위치 저장</button>
                 <button class="tb-btn" id="btn-add-node" onclick="openAddNodeModal()">장비/공장 추가</button>
             </div>
@@ -615,7 +832,12 @@ def render_process_visualization():
                     
                     <!-- Left Column (Sensor Data) -->
                     <div id="edit-modal-left" style="flex: 1.5; display: flex; flex-direction: column; min-width: 450px;">
-                        <label style="font-size:0.75rem; color:#34D399; margin-bottom: 0.5rem; display: block; font-weight: bold;"> 실시간 센서 데이터 (CSV)</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                            <label style="font-size:0.75rem; color:#34D399; display: block; font-weight: bold;"> 실시간 센서 데이터 (CSV)</label>
+                            <div id="modal-current-lot-badge" style="font-size: 0.68rem; color: #38BDF8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                                현재 가공 Lot: 대기 중
+                            </div>
+                        </div>
                         <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.6); padding: 4px 8px; border: 1px solid rgba(52, 211, 153, 0.3); border-radius: 4px; margin-bottom: 4px;">
                             <button type="button" onclick="document.getElementById('sensor-csv-upload').click()" style="padding: 4px 8px; font-size: 0.7rem; background: rgba(52, 211, 153, 0.15); border: 1px solid #34D399; color: #34D399; border-radius: 4px; cursor: pointer; white-space: nowrap;">파일 선택</button>
                             <span id="sensor-csv-filename" style="font-size: 0.75rem; color: #94A3B8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">선택된 파일 없음</span>
@@ -648,13 +870,25 @@ def render_process_visualization():
                             </div>
                         </div>
                         <div id="sensor-fail-log-container" style="flex: 1; min-height: 150px; margin-top: 15px; width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 10px; overflow-y: auto;">
-                            <div style="font-size: 0.75rem; color: #EF4444; font-weight: bold; margin-bottom: 8px;">Fail Log</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="font-size: 0.75rem; color: #EF4444; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+                                        Fail Log
+                                    </div>
+                                    <span id="fail-unresolved-count-badge" class="fail-unresolved-badge all-clear">정상 (0건)</span>
+                                </div>
+                                <button type="button" class="btn-resolve-all" id="btn-resolve-all-fails" onclick="resolveAllFailLogsForCurrentNode()">
+                                    전체 조치 완료
+                                </button>
+                            </div>
                             <table style="width: 100%; color: #E2E8F0; font-size: 0.65rem; border-collapse: collapse;">
                                 <thead>
                                     <tr style="border-bottom: 1px solid rgba(239, 68, 68, 0.4); text-align: left;">
-                                        <th style="padding: 4px; padding-bottom: 8px; width: 140px;">Date-Time</th>
-                                        <th style="padding: 4px; padding-bottom: 8px; width: 200px;">Failed Param (Value / Range)</th>
+                                        <th style="padding: 4px; padding-bottom: 8px; width: 110px;">Date-Time</th>
+                                        <th style="padding: 4px; padding-bottom: 8px; width: 130px; color: #38BDF8;">Lot ID (Wafer)</th>
+                                        <th style="padding: 4px; padding-bottom: 8px; width: 170px;">Failed Param (Value / Range)</th>
                                         <th style="padding: 4px; padding-bottom: 8px;">All Recorded Data</th>
+                                        <th style="padding: 4px; padding-bottom: 8px; width: 95px; text-align: center;">조치 상태</th>
                                     </tr>
                                 </thead>
                                 <tbody id="sensor-fail-log-body">
@@ -754,6 +988,39 @@ def render_process_visualization():
                 <div class="modal-actions">
                     <button class="modal-btn-cancel" onclick="closeModal('confirm-modal')">취소</button>
                     <button class="modal-btn" style="background:#F87171; color:#450A0A;" onclick="executeConfirmAction()">확인</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lot Traceability Modal -->
+        <div class="modal-overlay" id="lot-trace-modal" onclick="closeModalOnOverlay(event, 'lot-trace-modal')">
+            <div class="modal-box" style="width: 85vw; max-width: 1050px; height: 85vh; display: flex; flex-direction: column;">
+                <div class="modal-header" style="border-bottom: 1px solid rgba(56, 189, 248, 0.3); padding-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="modal-title" style="color: #38BDF8; font-size: 0.95rem;">🔍 Lot 공정 이력 및 결함 추적기 (Lot Traceability Tracker)</div>
+                        <select id="lot-trace-selector" class="modal-input" onchange="renderLotTraceTimeline(this.value)" style="width: 220px; margin: 0; padding: 0.25rem 0.5rem; font-size: 0.75rem; border-color: #38BDF8; color: #38BDF8; font-weight: bold;">
+                            <option value="LOT-20260812-B02">LOT-20260812-B02 (이상 발생 Lot)</option>
+                            <option value="LOT-20260812-A01">LOT-20260812-A01 (정상 가공 Lot)</option>
+                            <option value="LOT-20260812-C03">LOT-20260812-C03 (후기 가공 Lot)</option>
+                        </select>
+                    </div>
+                    <button class="modal-close-btn" onclick="closeModal('lot-trace-modal')">✕</button>
+                </div>
+                
+                <!-- Lot Summary Banner -->
+                <div id="lot-trace-summary-banner" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.72rem; color: #E2E8F0; display: flex; justify-content: space-between; align-items: center;">
+                    <div id="lot-summary-info">로딩 중...</div>
+                    <div id="lot-summary-status-badge"></div>
+                </div>
+
+                <!-- 35-step Journey Grid -->
+                <div style="flex: 1; overflow-y: auto; padding-right: 4px;">
+                    <div class="lot-trace-grid" id="lot-trace-steps-container">
+                    </div>
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 10px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08);">
+                    <button class="modal-btn-cancel" onclick="closeModal('lot-trace-modal')">닫기</button>
                 </div>
             </div>
         </div>
@@ -1187,24 +1454,30 @@ def render_process_visualization():
                 nodesData.forEach(node => {
                     const isSelected = selectedNodeIds.has(node.id);
                     const elem = document.createElement('div');
-                    elem.className = `n8n-node ${isSelected ? 'selected' : ''}`;
+                    elem.className = `n8n-node ${isSelected ? 'selected' : ''} ${node.isAnomalous ? 'anomalous' : ''}`;
                     elem.id = node.id;
                     elem.style.left = node.x + 'px';
                     elem.style.top = node.y + 'px';
 
                     const tagHTML = node.tag ? `<div class="micro-tag" style="background:rgba(52,211,153,0.15); color:#34D399; margin-bottom:2px;">${node.tag}</div>` : '';
                     const processHTML = node.process ? `<div class="micro-tag" style="background:rgba(168,85,247,0.15); color:#A855F7; margin-bottom:2px;">${node.process}</div>` : '';
+                    const alarmBadgeHTML = node.isAnomalous ? `<div class="node-alarm-badge" title="이상 감지 발생! 더블클릭하여 조치">🚨 FAIL</div>` : '';
+
+                    let lotBadgeHTML = '';
+                    if (node.currentLotId) {
+                        const lotShort = node.currentLotId.replace('LOT-20260812-', '');
+                        const waferStr = node.currentWaferId ? ` (${node.currentWaferId})` : '';
+                        lotBadgeHTML = `<div class="micro-lot-badge ${node.isAnomalous ? 'lot-fail' : ''}" title="현재 가공 Lot: ${node.currentLotId}${waferStr}">📦 ${lotShort}${waferStr}</div>`;
+                    }
 
                     elem.innerHTML = `
+                        ${alarmBadgeHTML}
                         <div class="micro-box-name">${node.name}</div>
                         ${tagHTML}
                         ${processHTML}
+                        ${lotBadgeHTML}
                         <div class="port-socket" data-nodeid="${node.id}" title="연결 포인트"></div>
                     `;
-                    
-                    if (node.isAnomalous) {
-                        elem.classList.add('anomalous');
-                    }
 
                     elem.addEventListener('dblclick', (e) => {
                         if (node.tag === 'Fab' || (node.params && node.params.includes('Fab'))) {
@@ -1415,14 +1688,275 @@ def render_process_visualization():
             }
             function manualSave() {
                 saveState();
+                showToast('위치와 연결이 성공적으로 저장되었습니다!');
+            }
+
+            function showToast(message) {
                 const toast = document.getElementById('toast-message');
                 if (toast) {
+                    toast.innerText = message;
                     toast.classList.add('show');
-                    setTimeout(() => {
+                    if (window._toastTimeout) clearTimeout(window._toastTimeout);
+                    window._toastTimeout = setTimeout(() => {
                         toast.classList.remove('show');
-                    }, 2500);
+                    }, 2800);
                 }
             }
+
+            function renderFailLogTable(node) {
+                const logBody = document.getElementById('sensor-fail-log-body');
+                const countBadge = document.getElementById('fail-unresolved-count-badge');
+                const modalLotBadge = document.getElementById('modal-current-lot-badge');
+                if (modalLotBadge) {
+                    const curLot = node.currentLotId || '대기 중';
+                    const curWafer = node.currentWaferId ? ` (${node.currentWaferId})` : '';
+                    modalLotBadge.innerText = `현재 가공 Lot: ${curLot}${curWafer}`;
+                }
+                if (!logBody) return;
+
+                if (!node || !node.failLogs || node.failLogs.length === 0) {
+                    logBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" style="padding: 14px; text-align: center; color: #94A3B8; font-size: 0.7rem;">
+                                기록된 Fail 내역이 없습니다 (정상 작동 중)
+                            </td>
+                        </tr>
+                    `;
+                    if (countBadge) {
+                        countBadge.className = 'fail-unresolved-badge all-clear';
+                        countBadge.innerText = '정상 (0건)';
+                    }
+                    return;
+                }
+
+                const unresolvedLogs = node.failLogs.filter(l => l.status === 'UNRESOLVED');
+                if (countBadge) {
+                    if (unresolvedLogs.length > 0) {
+                        countBadge.className = 'fail-unresolved-badge';
+                        countBadge.innerText = `미조치 ${unresolvedLogs.length}건`;
+                    } else {
+                        countBadge.className = 'fail-unresolved-badge all-clear';
+                        countBadge.innerText = '모든 조치 완료';
+                    }
+                }
+
+                let rowsHtml = '';
+                node.failLogs.forEach(log => {
+                    const isResolved = log.status === 'RESOLVED';
+                    const targetLotId = log.lotId || 'LOT-20260812-B02';
+                    const lotDisplay = log.lotDisplay || (log.lotId ? `${log.lotId}${log.waferId ? ' (' + log.waferId + ')' : ''}` : 'LOT-20260812-B02');
+                    rowsHtml += `
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); background: ${isResolved ? 'rgba(52, 211, 153, 0.04)' : 'rgba(239, 68, 68, 0.08)'};">
+                            <td style="padding: 6px 4px; white-space: nowrap; font-size: 0.65rem; color: ${isResolved ? '#94A3B8' : '#F1F5F9'};">
+                                ${log.timestamp}
+                            </td>
+                            <td style="padding: 6px 4px; white-space: nowrap; font-size: 0.65rem; color: #38BDF8; font-weight: 600;">
+                                <span class="lot-trace-link" onclick="openLotTraceModal('${targetLotId}')" title="클릭하여 ${targetLotId}의 35개 전 공정 이력 추적">
+                                    🏷️ ${lotDisplay}
+                                </span>
+                            </td>
+                            <td style="padding: 6px 4px; color: ${isResolved ? '#94A3B8' : '#EF4444'}; font-weight: bold; font-size: 0.65rem;">
+                                ${log.failedParam}
+                            </td>
+                            <td style="padding: 6px 4px; font-size: 0.6rem; color: #94A3B8; word-break: break-all;">
+                                ${log.allData}
+                            </td>
+                            <td style="padding: 6px 4px; text-align: center; white-space: nowrap;">
+                                ${isResolved
+                                    ? `<span class="badge-resolved" title="조치 완료 시각: ${log.resolvedAt || '-'}">✅ 조치 완료</span>`
+                                    : `<button type="button" class="btn-resolve-action" onclick="resolveSingleFailLog('${node.id}', '${log.id}')">🛠️ 조치 완료</button>`
+                                }
+                            </td>
+                        </tr>
+                    `;
+                });
+                logBody.innerHTML = rowsHtml;
+            }
+
+            window.openLotTraceModal = function(selectedLotId) {
+                const modal = document.getElementById('lot-trace-modal');
+                if (!modal) return;
+                modal.style.display = 'flex';
+                
+                const selector = document.getElementById('lot-trace-selector');
+                if (selector && selectedLotId) {
+                    selector.value = selectedLotId;
+                }
+                const currentVal = selector ? selector.value : (selectedLotId || 'LOT-20260812-B02');
+                renderLotTraceTimeline(currentVal);
+            };
+
+            window.renderLotTraceTimeline = function(lotId) {
+                const container = document.getElementById('lot-trace-steps-container');
+                const infoBanner = document.getElementById('lot-summary-info');
+                const statusBadge = document.getElementById('lot-summary-status-badge');
+                if (!container) return;
+
+                const nodes = (viewsData['fab-cmos'] && viewsData['fab-cmos'].nodes) ? viewsData['fab-cmos'].nodes : [];
+                
+                let defectCount = 0;
+                let originStepName = '';
+                let cascadeCount = 0;
+
+                let stepsHtml = '';
+                nodes.forEach((node, idx) => {
+                    const stepNumStr = node.address ? node.address.replace('step_', '') : (idx + 1 < 10 ? '0' + (idx + 1) : '' + (idx + 1));
+                    
+                    let stepStatus = 'NORMAL';
+                    let defectDetail = '';
+                    
+                    // Check if node has preloaded CSV or parsed fail logs for this lot
+                    if (node._parsedStatusData && node._parsedFailDetails && node._parsedRowMeta) {
+                        for (let i = 0; i < node._parsedRowMeta.length; i++) {
+                            const meta = node._parsedRowMeta[i];
+                            if (meta.lotId === lotId) {
+                                if (node._parsedStatusData[i]) {
+                                    const detail = node._parsedFailDetails[i];
+                                    if (node.id === 'step-05' || node.name.includes('STI 식각') || node.name.includes('컨택홀 포토') || node.id === 'step-22' || node.id === 'step-29') {
+                                        if (stepStatus !== 'DEFECT_ORIGIN') {
+                                            stepStatus = 'DEFECT_ORIGIN';
+                                            originStepName = node.name;
+                                            defectDetail = detail ? detail.failedParam : '파라미터 규격 이탈';
+                                        }
+                                    } else {
+                                        if (stepStatus === 'NORMAL') {
+                                            stepStatus = 'CASCADE_DEFECT';
+                                            defectDetail = detail ? detail.failedParam : '선행 공정 결함 연쇄 전파';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (node.failLogs) {
+                        const matchingLogs = node.failLogs.filter(l => l.lotId === lotId || !l.lotId);
+                        if (matchingLogs.length > 0) {
+                            if (node.id === 'step-05' || node.name.includes('STI 식각') || node.name.includes('컨택홀 포토') || node.id === 'step-22' || node.id === 'step-29') {
+                                stepStatus = 'DEFECT_ORIGIN';
+                                originStepName = node.name;
+                            } else {
+                                stepStatus = 'CASCADE_DEFECT';
+                            }
+                            defectDetail = matchingLogs[0].failedParam;
+                        }
+                    }
+
+                    if (stepStatus === 'DEFECT_ORIGIN') defectCount++;
+                    if (stepStatus === 'CASCADE_DEFECT') cascadeCount++;
+
+                    let cardClass = 'status-ok';
+                    let badgeHtml = '<span class="lot-step-badge badge-ok">✅ 정상 가공 완료</span>';
+                    let descHtml = '<div class="lot-step-desc">모든 공정 파라미터 규격(Spec) 내 정상 가공</div>';
+
+                    if (stepStatus === 'DEFECT_ORIGIN') {
+                        cardClass = 'status-origin';
+                        badgeHtml = '<span class="lot-step-badge badge-origin">🚨 불량 발생 원점 (ORIGIN)</span>';
+                        descHtml = `<div class="lot-step-desc" style="color: #FCA5A5; font-weight: bold;">[이상 원인] ${defectDetail || '챔버 파워/압력 급변'}</div>`;
+                    } else if (stepStatus === 'CASCADE_DEFECT') {
+                        cardClass = 'status-cascade';
+                        badgeHtml = '<span class="lot-step-badge badge-cascade">⚠️ 연쇄 불량 전파 (CASCADE)</span>';
+                        descHtml = `<div class="lot-step-desc" style="color: #FCD34D;">[연쇄 영향] ${defectDetail || '선행 불량으로 인한 품질 편차 전파'}</div>`;
+                    }
+
+                    stepsHtml += `
+                        <div class="lot-step-card ${cardClass}" onclick="openNodeFromTrace('${node.id}')" style="cursor: pointer;" title="클릭하여 [${node.name}] 장비 상세 데이터 확인">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="lot-step-num">Step ${stepNumStr}</span>
+                                ${badgeHtml}
+                            </div>
+                            <div class="lot-step-title">${node.name}</div>
+                            <div style="font-size: 0.58rem; color: #64748B;">공정: ${node.process || node.tag || 'Standard'}</div>
+                            ${descHtml}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = stepsHtml;
+
+                if (infoBanner && statusBadge) {
+                    infoBanner.innerHTML = `
+                        <div>
+                            <div>📦 추적 대상 Lot: <strong style="color:#38BDF8; font-size:0.8rem;">${lotId}</strong> | 웨이퍼 수량: <strong>25매</strong></div>
+                            <div style="font-size:0.65rem; color:#94A3B8; margin-top:2px;">OHT 이송 경로: Step 01 (웨이퍼 준비) ➔ Step 35 (칩 테스트)</div>
+                        </div>
+                    `;
+                    if (defectCount > 0) {
+                        statusBadge.innerHTML = `
+                            <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid #EF4444; color: #FCA5A5; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-align: right;">
+                                🚨 [${originStepName}] 결함 발생 ➔ 후속 ${cascadeCount}개 공정 연쇄 영향
+                            </div>
+                        `;
+                    } else {
+                        statusBadge.innerHTML = `
+                            <div style="background: rgba(52, 211, 153, 0.15); border: 1px solid #34D399; color: #34D399; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-align: right;">
+                                ✅ 전 공정 정상 가공 완료 (Zero Defect)
+                            </div>
+                        `;
+                    }
+                }
+            };
+
+            window.openNodeFromTrace = function(nodeId) {
+                closeModal('lot-trace-modal');
+                selectedNodeId = nodeId;
+                window.editModalMode = 'chart';
+                openEditModal();
+            };
+
+            window.resolveSingleFailLog = function(nodeId, logId) {
+                let targetNode = null;
+                Object.values(viewsData).forEach(view => {
+                    if (view.nodes) {
+                        const found = view.nodes.find(n => n.id === nodeId);
+                        if (found) targetNode = found;
+                    }
+                });
+                if (!targetNode || !targetNode.failLogs) return;
+
+                const logItem = targetNode.failLogs.find(l => l.id === logId);
+                if (logItem) {
+                    logItem.status = 'RESOLVED';
+                    logItem.resolvedAt = new Date().toLocaleTimeString();
+                }
+
+                const stillUnresolved = targetNode.failLogs.some(l => l.status === 'UNRESOLVED');
+                if (!stillUnresolved) {
+                    targetNode.isAnomalous = false;
+                    targetNode.hasActiveAlarm = false;
+                    showToast(`✅ [${targetNode.name}] 모든 결함 조치 완료 - 모듈 경고등(빨간색 테두리)이 해제되었습니다.`);
+                } else {
+                    showToast(`🛠️ [${targetNode.name}] 해당 결함 항목이 조치 완료되었습니다.`);
+                }
+
+                renderFailLogTable(targetNode);
+                renderNodes();
+                saveState();
+            };
+
+            window.resolveAllFailLogsForCurrentNode = function() {
+                let targetNode = null;
+                Object.values(viewsData).forEach(view => {
+                    if (view.nodes) {
+                        const found = view.nodes.find(n => n.id === selectedNodeId);
+                        if (found) targetNode = found;
+                    }
+                });
+                if (!targetNode || !targetNode.failLogs || targetNode.failLogs.length === 0) {
+                    showToast('조치할 결함 로그가 없습니다.');
+                    return;
+                }
+
+                targetNode.failLogs.forEach(l => {
+                    l.status = 'RESOLVED';
+                    l.resolvedAt = new Date().toLocaleTimeString();
+                });
+                targetNode.isAnomalous = false;
+                targetNode.hasActiveAlarm = false;
+
+                renderFailLogTable(targetNode);
+                renderNodes();
+                saveState();
+                showToast(`✅ [${targetNode.name}] 전체 결함 로그 조치 완료 - 모듈 경고등(빨간색 테두리)이 꺼졌습니다.`);
+            };
 
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
@@ -1722,6 +2256,7 @@ def render_process_visualization():
 
                 document.getElementById('param-input').value = '';
                 document.getElementById('part-input').value = '';
+                renderFailLogTable(node);
                 document.getElementById('edit-modal').style.display = 'flex';
             }
 
@@ -2112,64 +2647,138 @@ def render_process_visualization():
                             if (csvData) {
                                 node.testCsvData = csvData;
                                 node.testCsvName = matchedName;
-                                // 3-point moving average anomaly detection
                                 const lines = csvData.trim().split('\\n');
                                 if (lines.length > 1) {
                                     const headers = lines[0].split(',');
-                                    const skipCols = ['Timestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', ''];
+                                    const skipCols = ['Timestamp', '\ufeffTimestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', 'Lot_ID', 'Wafer_ID', ''];
                                     const numCols = [];
                                     headers.forEach((h, i) => {
                                         if (!skipCols.includes(h.trim())) numCols.push(i);
                                     });
                                     
+                                    const statusIdx = headers.findIndex(h => h.trim() === 'Status');
+                                    const timeIdx = headers.findIndex(h => h.trim() === 'Timestamp');
+                                    const lotIdx = headers.findIndex(h => h.trim() === 'Lot_ID');
+                                    const waferIdx = headers.findIndex(h => h.trim() === 'Wafer_ID');
+                                    const phaseIdx = headers.findIndex(h => h.trim() === 'Phase');
+                                    
                                     // Parse numeric rows
                                     const dataRows = [];
+                                    const rawRows = [];
                                     for (let i = 1; i < lines.length; i++) {
                                         const row = lines[i].split(',');
                                         if (row.length === headers.length) {
                                             const r = {};
                                             numCols.forEach(idx => { r[idx] = parseFloat(row[idx].trim()); });
                                             dataRows.push(r);
+                                            rawRows.push(row);
                                         }
                                     }
                                     
-                                    // 3-point moving average per column, then flag rows where any col deviates > 3sigma
-                                    const statuses = dataRows.map((_, ri) => {
+                                    const statuses = [];
+                                    const failDetails = [];
+                                    const rowMeta = [];
+                                    
+                                    dataRows.forEach((rowObj, ri) => {
                                         let anomalous = false;
-                                        for (const colIdx of numCols) {
-                                            const window = [];
-                                            for (let w = Math.max(0, ri - 2); w <= ri; w++) {
-                                                const v = dataRows[w][colIdx];
-                                                if (!isNaN(v)) window.push(v);
-                                            }
-                                            if (window.length < 2) continue;
-                                            const avg = window.reduce((a, b) => a + b, 0) / window.length;
-                                            const std = Math.sqrt(window.reduce((a, b) => a + (b - avg) ** 2, 0) / window.length);
-                                            const current = dataRows[ri][colIdx];
-                                            if (!isNaN(current) && std > 0 && Math.abs(current - avg) > 3 * std) {
+                                        let failMsgs = [];
+                                        const fullRow = rawRows[ri];
+                                        const timestamp = timeIdx >= 0 ? fullRow[timeIdx] : `Point_${ri}`;
+                                        const lotId = lotIdx >= 0 ? fullRow[lotIdx].trim() : 'LOT-20260812-B02';
+                                        const waferId = waferIdx >= 0 ? fullRow[waferIdx].trim() : '';
+                                        const lotDisplay = waferId ? `${lotId} (${waferId})` : lotId;
+                                        const phase = phaseIdx >= 0 ? fullRow[phaseIdx].trim() : 'DEFAULT';
+                                        
+                                        rowMeta.push({
+                                            lotId: lotId,
+                                            waferId: waferId,
+                                            lotDisplay: lotDisplay,
+                                            phase: phase
+                                        });
+
+                                        // 1) Status column check
+                                        if (statusIdx >= 0) {
+                                            const sVal = fullRow[statusIdx].trim();
+                                            if (sVal && sVal !== 'NORMAL' && sVal !== 'Status' && sVal !== 'OK') {
                                                 anomalous = true;
-                                                break;
+                                                failMsgs.push(`Status (${sVal})`);
                                             }
                                         }
-                                        return anomalous;
+                                        
+                                        // 2) 3-point moving average deviation
+                                        if (phase !== 'RAMP') {
+                                            for (const colIdx of numCols) {
+                                                const window = [];
+                                                for (let w = Math.max(0, ri - 2); w <= ri; w++) {
+                                                    const v = dataRows[w][colIdx];
+                                                    if (!isNaN(v)) window.push(v);
+                                                }
+                                                if (window.length < 2) continue;
+                                                const avg = window.reduce((a, b) => a + b, 0) / window.length;
+                                                const std = Math.sqrt(window.reduce((a, b) => a + (b - avg) ** 2, 0) / window.length);
+                                                const current = dataRows[ri][colIdx];
+                                                if (!isNaN(current) && std > 0 && Math.abs(current - avg) > 3 * std) {
+                                                    anomalous = true;
+                                                    const hName = headers[colIdx].trim();
+                                                    failMsgs.push(`${hName} (${current.toFixed(2)})`);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        
+                                        statuses.push(anomalous);
+                                        if (anomalous) {
+                                            const allDataStr = numCols.map(c => `${headers[c].trim()}: ${rowObj[c] !== undefined && !isNaN(rowObj[c]) ? rowObj[c].toFixed(2) : '-'}`).join(', ');
+                                            failDetails.push({
+                                                rowIdx: ri,
+                                                timestamp: timestamp,
+                                                lotId: lotId,
+                                                waferId: waferId,
+                                                lotDisplay: lotDisplay,
+                                                failedParam: failMsgs.join(', '),
+                                                allData: allDataStr
+                                            });
+                                        } else {
+                                            failDetails.push(null);
+                                        }
                                     });
+                                    
                                     node._parsedStatusData = statuses;
+                                    node._parsedFailDetails = failDetails;
+                                    node._parsedRowMeta = rowMeta;
+                                    node.currentLotId = rowMeta.length > 0 ? rowMeta[0].lotId : null;
+                                    node.currentWaferId = rowMeta.length > 0 ? rowMeta[0].waferId : null;
+                                    node.failLogs = [];
+                                    node.isAnomalous = false;
+                                    node.hasActiveAlarm = false;
                                 }
                             } else {
                                 node.testCsvData = null;
                                 node.testCsvName = null;
                                 node._parsedStatusData = null;
+                                node._parsedFailDetails = null;
+                                node._parsedRowMeta = null;
+                                node.currentLotId = null;
+                                node.currentWaferId = null;
+                                node.failLogs = [];
+                                node.isAnomalous = false;
+                                node.hasActiveAlarm = false;
                             }
                         } else {
                             node.testCsvData = null;
                             node.testCsvName = null;
                             node._parsedStatusData = null;
+                            node._parsedFailDetails = null;
+                            node._parsedRowMeta = null;
+                            node.currentLotId = null;
+                            node.currentWaferId = null;
+                            node.failLogs = [];
+                            node.isAnomalous = false;
+                            node.hasActiveAlarm = false;
                         }
                     });
                     saveState();
-                    if (currentViewId === 'fab-cmos') {
-                        renderNodes();
-                    }
+                    renderNodes();
                 }
             }
 
@@ -2184,21 +2793,75 @@ def render_process_visualization():
                 let anyChanged = false;
                 viewsData[currentViewId].nodes.forEach(node => {
                     const statuses = node._parsedStatusData;
+                    const failDetails = node._parsedFailDetails;
+                    const rowMeta = node._parsedRowMeta;
                     if (statuses && statuses.length > 0) {
                         const currentRow = Math.floor(elapsedMs / msPerPoint) % statuses.length;
-                        const isAnomalous = statuses[currentRow] === true;
-                        if (node.isAnomalous !== isAnomalous) {
-                            node.isAnomalous = isAnomalous;
+                        
+                        if (rowMeta && rowMeta[currentRow]) {
+                            const meta = rowMeta[currentRow];
+                            if (node.currentLotId !== meta.lotId || node.currentWaferId !== meta.waferId) {
+                                node.currentLotId = meta.lotId;
+                                node.currentWaferId = meta.waferId;
+                                anyChanged = true;
+                            }
+                        }
+
+                        const isRowAnomalous = statuses[currentRow] === true;
+                        if (isRowAnomalous && failDetails && failDetails[currentRow]) {
+                            const detail = failDetails[currentRow];
+                            node.failLogs = node.failLogs || [];
+                            const exists = node.failLogs.some(l => l.rowIdx === currentRow || l.timestamp === detail.timestamp);
+                            if (!exists) {
+                                node.failLogs.unshift({
+                                    id: 'fail_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+                                    rowIdx: currentRow,
+                                    timestamp: detail.timestamp,
+                                    lotId: detail.lotId,
+                                    waferId: detail.waferId,
+                                    lotDisplay: detail.lotDisplay,
+                                    failedParam: detail.failedParam,
+                                    allData: detail.allData,
+                                    status: 'UNRESOLVED',
+                                    createdAt: new Date().toLocaleTimeString()
+                                });
+                                node.hasActiveAlarm = true;
+                                node.isAnomalous = true;
+                                anyChanged = true;
+                            }
+                        }
+                        
+                        // Node stays anomalous/glowing red as long as there is at least one UNRESOLVED fail log!
+                        const hasUnresolved = (node.failLogs || []).some(l => l.status === 'UNRESOLVED');
+                        if (node.isAnomalous !== hasUnresolved) {
+                            node.isAnomalous = hasUnresolved;
+                            node.hasActiveAlarm = hasUnresolved;
                             anyChanged = true;
                         }
                     } else if (node.isAnomalous) {
                         node.isAnomalous = false;
+                        node.hasActiveAlarm = false;
                         anyChanged = true;
                     }
                 });
                 
+                // Propagate to main Fab node if any internal node is anomalous
+                if (viewsData['fab-cmos'] && viewsData['fab-cmos'].nodes) {
+                    const hasFabAnomalous = viewsData['fab-cmos'].nodes.some(n => n.isAnomalous);
+                    const fabNode = viewsData['main']?.nodes?.find(n => n.id === 'fab-cmos');
+                    if (fabNode && fabNode.isAnomalous !== hasFabAnomalous) {
+                        fabNode.isAnomalous = hasFabAnomalous;
+                        if (currentViewId === 'main') anyChanged = true;
+                    }
+                }
+                
                 if (anyChanged) {
                     renderNodes();
+                    const modal = document.getElementById('edit-modal');
+                    if (modal && modal.style.display !== 'none' && selectedNodeId) {
+                        const cur = (viewsData[currentViewId]?.nodes || []).find(n => n.id === selectedNodeId);
+                        if (cur) renderFailLogTable(cur);
+                    }
                 }
             }, 100);
 
@@ -2208,8 +2871,8 @@ def render_process_visualization():
                 
                 const headers = lines[0].split(',');
                 
-                // Identify data columns (ignore Timestamp, Step_ID, Step_Name, Status, Phase, Address)
-                const skipCols = ['Timestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', ''];
+                // Identify data columns (ignore Timestamp, Step_ID, Step_Name, Status, Phase, Address, Lot_ID, Wafer_ID)
+                const skipCols = ['Timestamp', '\ufeffTimestamp', 'Address', 'Step_ID', 'Step_Name', 'Status', 'Phase', 'Lot_ID', 'Wafer_ID', ''];
                 const dataColIndices = [];
                 const datasets = [];
                 
@@ -2234,6 +2897,8 @@ def render_process_visualization():
                 });
                 
                 const timeIndex = headers.findIndex(h => h.trim() === 'Timestamp');
+                const lotIndex = headers.findIndex(h => h.trim() === 'Lot_ID');
+                const waferIndex = headers.findIndex(h => h.trim() === 'Wafer_ID');
                 const phaseIndex = headers.findIndex(h => h.trim() === 'Phase');
                 const phaseShort = {'RAMP': 'R', 'IDLE': 'I', 'ACTIVE': 'A'};
                 
@@ -2249,8 +2914,10 @@ def render_process_visualization():
                 clearChartState();
                 
                 window.lastFailTimestamp = null;
-                const logBody = document.getElementById('sensor-fail-log-body');
-                if (logBody) logBody.innerHTML = '';
+                const modalNode = (viewsData[currentViewId]?.nodes || []).find(n => n.id === selectedNodeId);
+                if (modalNode) {
+                    renderFailLogTable(modalNode);
+                }
                 
                 window.currentStats = {};
                 const valuesByPhase = {};
@@ -2409,11 +3076,13 @@ def render_process_visualization():
 
                 
                 function updateRealTimeTable(currentRowData, timestamp, currentPhase) {
-                    const logBody = document.getElementById('sensor-fail-log-body');
-                    
                     let hasFail = false;
                     let failMessages = [];
                     let allDataStr = [];
+                    
+                    const lotId = lotIndex >= 0 ? currentRowData[lotIndex].trim() : 'LOT-20260812-B02';
+                    const waferId = waferIndex >= 0 ? currentRowData[waferIndex].trim() : '';
+                    const lotDisplay = waferId ? `${lotId} (${waferId})` : lotId;
                     
                     dataColIndices.forEach((colIdx) => {
                         const val = parseFloat(currentRowData[colIdx]);
@@ -2437,18 +3106,34 @@ def render_process_visualization():
                         }
                     });
                     
-                    if (hasFail && logBody) {
-                        if (window.lastFailTimestamp !== timestamp) {
-                            window.lastFailTimestamp = timestamp;
-                            const tr = document.createElement('tr');
-                            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                            tr.innerHTML = `
-                                <td style="padding: 6px 4px; white-space: nowrap;">${timestamp}</td>
-                                <td style="padding: 6px 4px; color: #EF4444; font-weight:bold;">${failMessages.join('<br>')}</td>
-                                <td style="padding: 6px 4px; font-size: 0.6rem; color: #94A3B8; word-break: break-all;">${allDataStr.join(', ')}</td>
-                            `;
-                            logBody.prepend(tr);
+                    const node = (viewsData[currentViewId]?.nodes || []).find(n => n.id === selectedNodeId);
+                    if (node) {
+                        node.currentLotId = lotId;
+                        node.currentWaferId = waferId;
+                        if (hasFail) {
+                            node.failLogs = node.failLogs || [];
+                            if (window.lastFailTimestamp !== timestamp) {
+                                window.lastFailTimestamp = timestamp;
+                                const exists = node.failLogs.some(l => l.timestamp === timestamp);
+                                if (!exists) {
+                                    node.failLogs.unshift({
+                                        id: 'fail_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+                                        timestamp: timestamp,
+                                        lotId: lotId,
+                                        waferId: waferId,
+                                        lotDisplay: lotDisplay,
+                                        failedParam: failMessages.join('<br>'),
+                                        allData: allDataStr.join(', '),
+                                        status: 'UNRESOLVED',
+                                        createdAt: new Date().toLocaleTimeString()
+                                    });
+                                    node.isAnomalous = true;
+                                    node.hasActiveAlarm = true;
+                                    renderNodes();
+                                }
+                            }
                         }
+                        renderFailLogTable(node);
                     }
                 }
 
