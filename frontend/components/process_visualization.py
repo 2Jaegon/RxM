@@ -780,8 +780,8 @@ def render_process_visualization():
         <div class="modal-overlay" id="add-modal" onclick="closeModalOnOverlay(event, 'add-modal')">
             <div class="modal-box">
                 <div class="modal-header">
-                    <div class="modal-title" id="add-modal-title">➕ 신규 장비 노드 추가</div>
-                    <button class="modal-close-btn" onclick="closeModal('add-modal')">✕</button>
+                    <div class="modal-title" id="add-modal-title">신규 장비 노드 추가</div>
+                    <button class="modal-close-btn" onclick="closeModal('add-modal')"></button>
                 </div>
                 <label style="font-size:0.7rem; color:#94A3B8;" id="add-modal-name-label">장비 이름</label>
                 <input class="modal-input" id="node-name-input" placeholder="이름을 입력하세요">
@@ -826,7 +826,7 @@ def render_process_visualization():
             <div class="modal-box">
                 <div class="modal-header">
                     <div class="modal-title" id="modal-selected-name" style="color:#34D399; font-weight:700; max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
-                    <button class="modal-close-btn" onclick="closeModal('edit-modal')">✕</button>
+                    <button class="modal-close-btn" onclick="closeModal('edit-modal')"></button>
                 </div>
                 <div style="display: flex; gap: 20px; width: 100%; flex: 1; overflow: hidden;" id="edit-modal-flex">
                     
@@ -982,7 +982,7 @@ def render_process_visualization():
             <div class="modal-box" style="width: 300px;">
                 <div class="modal-header">
                     <div class="modal-title">확인</div>
-                    <button class="modal-close-btn" onclick="closeModal('confirm-modal')">✕</button>
+                    <button class="modal-close-btn" onclick="closeModal('confirm-modal')"></button>
                 </div>
                 <div id="confirm-modal-message" style="font-size:0.75rem; color:#E2E8F0; margin-bottom:1.5rem; margin-top:0.5rem; text-align:center;">정말로 삭제하시겠습니까?</div>
                 <div class="modal-actions">
@@ -1004,7 +1004,7 @@ def render_process_visualization():
                             <option value="LOT-20260812-C03">LOT-20260812-C03 (후기 가공 Lot)</option>
                         </select>
                     </div>
-                    <button class="modal-close-btn" onclick="closeModal('lot-trace-modal')">✕</button>
+                    <button class="modal-close-btn" onclick="closeModal('lot-trace-modal')"></button>
                 </div>
                 
                 <!-- Lot Summary Banner -->
@@ -1024,6 +1024,49 @@ def render_process_visualization():
                 </div>
             </div>
         </div>
+        <!-- Fab Internal Nodes List Modal -->
+        <div class="modal-overlay" id="fab-nodes-modal" onclick="closeModalOnOverlay(event, 'fab-nodes-modal')">
+            <div class="modal-box" style="width: 75vw; max-width: 880px; height: 80vh; display: flex; flex-direction: column;">
+                <div class="modal-header" style="border-bottom: 1px solid rgba(56, 189, 248, 0.3); padding-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="modal-title" id="fab-modal-title" style="color: #38BDF8; font-size: 0.95rem;">공장 내부 장비 및 공정 목록</div>
+                        <span id="fab-modal-count-badge" style="background: rgba(56,189,248,0.15); color: #38BDF8; border: 1px solid rgba(56,189,248,0.3); font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">총 35개 공정</span>
+                    </div>
+                    <button class="modal-close-btn" onclick="closeModal('fab-nodes-modal')"></button>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 10px; gap: 10px;">
+                    <input type="text" id="fab-nodes-search-input" class="modal-input" placeholder="장비명, 공정(Tag) 또는 세부 공정 검색..." oninput="onFabNodesSearchInput(this.value)" style="margin: 0; flex: 1; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-color: rgba(56,189,248,0.4);">
+                    <button class="modal-btn" onclick="enterCurrentFabView()" style="background: linear-gradient(135deg, #0284C7, #0369A1); color: #FFFFFF; font-size: 0.75rem; padding: 0.4rem 0.9rem; white-space: nowrap; border: 1px solid #38BDF8; box-shadow: 0 0 10px rgba(56,189,248,0.3); cursor: pointer;">
+                        공장 내부로 진입
+                    </button>
+                </div>
+
+                <div style="flex: 1; overflow-y: auto; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px;">
+                    <table style="width: 100%; color: #E2E8F0; font-size: 0.7rem; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(30, 41, 59, 0.7); text-align: left;">
+                                <th style="padding: 8px 6px; width: 45px; text-align: center;">No.</th>
+                                <th style="padding: 8px 6px; width: 180px;">장비명 (Equipment)</th>
+                                <th style="padding: 8px 6px; width: 110px;">8대 공정 (Category)</th>
+                                <th style="padding: 8px 6px; width: 140px;">세부 공정 (Process)</th>
+                                <th style="padding: 8px 6px;">등록 파라미터 (Parameters)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fab-nodes-list-body">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 10px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+                    <button class="modal-btn-cancel" style="color: #F87171; border-color: rgba(248, 113, 113, 0.4);" onclick="deleteFabFromModal()">공장 삭제</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="modal-btn-cancel" onclick="closeModal('fab-nodes-modal')">닫기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 
         <script>
             const preloadedDatasets = JSON.parse('""" + preloaded_datasets_json + """');
@@ -1119,7 +1162,7 @@ def render_process_visualization():
                     id: 'node-cmos-' + index,
                     address: 'step_' + String(index + 1).padStart(2, '0'),
                     name: step.name,
-                    icon: step.icon,
+                    icon: '',
                     tag: step.tag,
                     process: step.process,
                     x: snappedCx - nodeW / 2,
@@ -1133,15 +1176,13 @@ def render_process_visualization():
             for (let i = 0; i < defaultFabNodes.length - 1; i++) {
                 defaultFabConnections.push({ from: defaultFabNodes[i].id, to: defaultFabNodes[i+1].id });
             }
-            // Connect the last node to AI node
-            defaultFabConnections.push({ from: defaultFabNodes[defaultFabNodes.length - 1].id, to: 'node-ai' });
 
             const defaultViews = {
                 'main': {
                     nodes: [{
                         id: 'fab-cmos',
                         name: 'CMOS 공정 팹',
-                        icon: '🏭',
+                        icon: '',
                         x: Math.round(((window.innerWidth / 2 - 100) + 65/2 - 20) / 40) * 40 + 20 - 65/2,
                         y: Math.round(((window.innerHeight / 2 - 50) + 50/2 - 20) / 40) * 40 + 20 - 50/2,
                         params: ['Fab'],
@@ -1156,6 +1197,13 @@ def render_process_visualization():
             };
 
             let viewsData = JSON.parse(localStorage.getItem('rxm_views_data_v3')) || JSON.parse(JSON.stringify(defaultViews));
+            
+            // Clean up any legacy connections to central hub (node-ai/node-rag) in subviews
+            Object.keys(viewsData).forEach(vId => {
+                if (vId !== 'main' && viewsData[vId] && viewsData[vId].connections) {
+                    viewsData[vId].connections = viewsData[vId].connections.filter(c => c.to !== 'node-ai' && c.to !== 'node-rag' && c.from !== 'node-ai' && c.from !== 'node-rag');
+                }
+            });
             
             // Backward compatibility migration: Move params[0] to tag if tag is not defined.
             Object.values(viewsData).forEach(view => {
@@ -1442,12 +1490,17 @@ def render_process_visualization():
                 
                 const centralHub = document.getElementById('central-hub');
                 if (centralHub) {
-                    if (viewsData[currentViewId].hubPos) {
-                        centralHub.style.left = viewsData[currentViewId].hubPos.x + 'px';
-                        centralHub.style.top = viewsData[currentViewId].hubPos.y + 'px';
+                    if (currentViewId === 'main') {
+                        centralHub.style.display = 'flex';
+                        if (viewsData['main'] && viewsData['main'].hubPos) {
+                            centralHub.style.left = viewsData['main'].hubPos.x + 'px';
+                            centralHub.style.top = viewsData['main'].hubPos.y + 'px';
+                        } else {
+                            centralHub.style.left = '880px';
+                            centralHub.style.top = '150px';
+                        }
                     } else {
-                        centralHub.style.left = '880px';
-                        centralHub.style.top = '150px';
+                        centralHub.style.display = 'none';
                     }
                 }
 
@@ -1492,8 +1545,12 @@ def render_process_visualization():
                         e.preventDefault();
                         e.stopPropagation();
                         selectedNodeId = node.id;
-                        window.editModalMode = 'edit';
-                        openEditModal();
+                        if (node.tag === 'Fab' || (node.params && node.params.includes('Fab')) || currentViewId === 'main') {
+                            openFabNodesModal(node);
+                        } else {
+                            window.editModalMode = 'edit';
+                            openEditModal();
+                        }
                     });
 
                     elem.addEventListener('mousedown', (e) => {
@@ -1673,7 +1730,7 @@ def render_process_visualization():
                 if (elem) elem.style.display = 'none';
             }
             function closeAllModals() {
-                ['add-modal', 'edit-modal', 'confirm-modal', 'lot-trace-modal'].forEach(mId => closeModal(mId));
+                ['add-modal', 'edit-modal', 'confirm-modal', 'lot-trace-modal', 'fab-nodes-modal'].forEach(mId => closeModal(mId));
                 const searchRes = document.getElementById('conn-search-results');
                 if (searchRes) searchRes.style.display = 'none';
                 wiringStartNodeId = null;
@@ -1772,8 +1829,8 @@ def render_process_visualization():
                             </td>
                             <td style="padding: 6px 4px; text-align: center; white-space: nowrap;">
                                 ${isResolved
-                                    ? `<span class="badge-resolved" title="조치 완료 시각: ${log.resolvedAt || '-'}">✅ 조치 완료</span>`
-                                    : `<button type="button" class="btn-resolve-action" data-nodeid="${node.id}" data-logid="${log.id}" onclick="resolveSingleFailLog('${node.id}', '${log.id}')">🛠️ 조치 완료</button>`
+                                    ? `<span class="badge-resolved" title="조치 완료 시각: ${log.resolvedAt || '-'}">조치 완료</span>`
+                                    : `<button type="button" class="btn-resolve-action" data-nodeid="${node.id}" data-logid="${log.id}" onclick="resolveSingleFailLog('${node.id}', '${log.id}')">조치 완료</button>`
                                 }
                             </td>
                         </tr>
@@ -1781,6 +1838,107 @@ def render_process_visualization():
                 });
                 logBody.innerHTML = rowsHtml;
             }
+
+            
+            // Fab Nodes Modal Functions
+            window.openFabNodesModal = function(node) {
+                const modal = document.getElementById('fab-nodes-modal');
+                if (!modal) return;
+                
+                document.getElementById('fab-modal-title').innerText = `${node.name} 내부 장비 및 공정 목록`;
+                const internalNodes = (viewsData[node.id] && viewsData[node.id].nodes) ? viewsData[node.id].nodes : [];
+                document.getElementById('fab-modal-count-badge').innerText = `총 ${internalNodes.length}개 공정`;
+                
+                window.currentViewingFabId = node.id;
+                window.currentFabInternalNodes = internalNodes;
+                
+                const searchInput = document.getElementById('fab-nodes-search-input');
+                if (searchInput) searchInput.value = '';
+                
+                renderFabNodesList(internalNodes);
+                modal.style.display = 'flex';
+            };
+
+            window.onFabNodesSearchInput = function(val) {
+                if (window.currentFabInternalNodes) {
+                    renderFabNodesList(window.currentFabInternalNodes, val);
+                }
+            };
+
+            
+            window.deleteFabFromModal = function() {
+                if (window.currentViewingFabId) {
+                    const fabId = window.currentViewingFabId;
+                    closeModal('fab-nodes-modal');
+                    deleteNodeById(fabId);
+                }
+            };
+
+            window.enterCurrentFabView = function() {
+                if (window.currentViewingFabId) {
+                    closeModal('fab-nodes-modal');
+                    navigateView(window.currentViewingFabId);
+                }
+            };
+
+            window.renderFabNodesList = function(nodes, filterText = '') {
+                const container = document.getElementById('fab-nodes-list-body');
+                if (!container) return;
+                
+                const query = filterText.toLowerCase().trim();
+                const filtered = nodes.filter(n => {
+                    if (!query) return true;
+                    const nameMatch = n.name && n.name.toLowerCase().includes(query);
+                    const tagMatch = n.tag && n.tag.toLowerCase().includes(query);
+                    const procMatch = n.process && n.process.toLowerCase().includes(query);
+                    return nameMatch || tagMatch || procMatch;
+                });
+                
+                if (filtered.length === 0) {
+                    container.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94A3B8;">검색 결과가 없습니다.</td></tr>`;
+                    return;
+                }
+                
+                const tagColors = {
+                    'Material': '#94A3B8',
+                    'Wet Process': '#38BDF8',
+                    'Wet Etch': '#38BDF8',
+                    'CVD': '#34D399',
+                    'Litho': '#FBBF24',
+                    'Etch': '#F87171',
+                    'CMP': '#A855F7',
+                    'Implant': '#EC4899',
+                    'RTP': '#FB923C',
+                    'Epitaxy': '#60A5FA',
+                    'ECP': '#F43F5E',
+                    'BEOL': '#818CF8',
+                    'Passivation': '#2DD4BF',
+                    'Test': '#E2E8F0'
+                };
+                
+                let html = '';
+                filtered.forEach((n, idx) => {
+                    const stepNum = String(idx + 1).padStart(2, '0');
+                    const tagColor = tagColors[n.tag] || '#34D399';
+                    const paramsStr = (n.params && n.params.length > 0) ? n.params.join(', ') : '-';
+                    html += `
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(56,189,248,0.08)'" onmouseout="this.style.background='transparent'">
+                            <td style="padding: 8px 6px; text-align: center; color: #64748B; font-weight: bold; font-size: 0.7rem;">${stepNum}</td>
+                            <td style="padding: 8px 6px; color: #F8FAFC; font-weight: 600; font-size: 0.75rem;">${n.name}</td>
+                            <td style="padding: 8px 6px;">
+                                <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; background: ${tagColor}22; color: ${tagColor}; border: 1px solid ${tagColor}44;">
+                                    ${n.tag || '-'}
+                                </span>
+                            </td>
+                            <td style="padding: 8px 6px; color: #CBD5E1; font-size: 0.7rem;">${n.process || '-'}</td>
+                            <td style="padding: 8px 6px; color: #94A3B8; font-size: 0.65rem; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${paramsStr}">
+                                ${paramsStr}
+                            </td>
+                        </tr>
+                    `;
+                });
+                container.innerHTML = html;
+            };
 
             window.openLotTraceModal = function(selectedLotId) {
                 const modal = document.getElementById('lot-trace-modal');
@@ -1885,13 +2043,13 @@ def render_process_visualization():
                     infoBanner.innerHTML = `
                         <div>
                             <div> 추적 대상 Lot: <strong style="color:#38BDF8; font-size:0.8rem;">${lotId}</strong> | 웨이퍼 수량: <strong>25매</strong></div>
-                            <div style="font-size:0.65rem; color:#94A3B8; margin-top:2px;">OHT 이송 경로: Step 01 (웨이퍼 준비) ➔ Step 35 (칩 테스트)</div>
+                            <div style="font-size:0.65rem; color:#94A3B8; margin-top:2px;">OHT 이송 경로: Step 01 (웨이퍼 준비)  Step 35 (칩 테스트)</div>
                         </div>
                     `;
                     if (defectCount > 0) {
                         statusBadge.innerHTML = `
                             <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid #EF4444; color: #FCA5A5; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-align: right;">
-                                 [${originStepName}] 결함 발생 ➔ 후속 ${cascadeCount}개 공정 연쇄 영향
+                                 [${originStepName}] 결함 발생  후속 ${cascadeCount}개 공정 연쇄 영향
                             </div>
                         `;
                     } else {
@@ -1995,12 +2153,12 @@ def render_process_visualization():
                 document.getElementById('node-name-input').value = '';
                 
                 if (currentViewId === 'main') {
-                    if (title) title.innerText = '➕ 신규 공장 추가';
+                    if (title) title.innerText = ' 신규 공장 추가';
                     if (nameLabel) nameLabel.innerText = '공장 이름';
                     if (extraFields) extraFields.style.display = 'none';
                     if (tagInput) { tagInput.value = 'Fab'; tagInput.disabled = true; }
                 } else {
-                    if (title) title.innerText = '➕ 신규 장비 추가';
+                    if (title) title.innerText = ' 신규 장비 추가';
                     if (nameLabel) nameLabel.innerText = '장비 이름';
                     if (extraFields) extraFields.style.display = 'block';
                     if (tagInput) { tagInput.value = 'Etch'; tagInput.disabled = false; }
@@ -2249,22 +2407,22 @@ def render_process_visualization():
                 
                 incList.innerHTML = incConns.map(c => {
                     const fromNode = nodesData.find(n => n.id === c.from) || {name: c.from};
-                    return `<div class="conn-search-item"><span>${fromNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">✕</span></div>`;
+                    return `<div class="conn-search-item"><span>${fromNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')"></span></div>`;
                 }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">이전 공정 없음</div>';
                 
                 outList.innerHTML = outConns.map(c => {
                     const toNode = nodesData.find(n => n.id === c.to) || {name: c.to};
-                    return `<div class="conn-search-item"><span>${toNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')">✕</span></div>`;
+                    return `<div class="conn-search-item"><span>${toNode.name}</span><span class="tag-del" style="font-size:0.65rem;" onclick="removeConnModal('${c.from}', '${c.to}')"></span></div>`;
                 }).join('') || '<div style="font-size:0.6rem; color:#64748B; text-align:center; padding-top:0.2rem;">이후 공정 없음</div>';
                 
                 document.getElementById('conn-search-input').value = '';
                 document.getElementById('conn-search-results').style.display = 'none';
                 
                 const pContainer = document.getElementById('current-params-list');
-                pContainer.innerHTML = node.params.map((p, idx) => `<span class="param-tag">${p} <span class="tag-del" onclick="removeParamModal('${node.id}', ${idx})">✕</span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 파라미터 없음</span>';
+                pContainer.innerHTML = node.params.map((p, idx) => `<span class="param-tag">${p} <span class="tag-del" onclick="removeParamModal('${node.id}', ${idx})"></span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 파라미터 없음</span>';
 
                 const ptContainer = document.getElementById('current-parts-list');
-                ptContainer.innerHTML = node.parts.map((pt, idx) => `<span class="part-tag">${pt} <span class="tag-del" onclick="removePartModal('${node.id}', ${idx})">✕</span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 하위 부품 없음</span>';
+                ptContainer.innerHTML = node.parts.map((pt, idx) => `<span class="part-tag">${pt} <span class="tag-del" onclick="removePartModal('${node.id}', ${idx})"></span></span>`).join('') || '<span style="font-size:0.68rem; color:#64748B;">등록된 하위 부품 없음</span>';
 
                 document.getElementById('param-input').value = '';
                 document.getElementById('part-input').value = '';
@@ -2366,6 +2524,7 @@ def render_process_visualization():
             function syncParticles() {
                 particles = particles.filter(p => connections.some(c => c.from === p.from && c.to === p.to));
                 connections.forEach(c => {
+                    if (currentViewId !== 'main' && (c.to === 'node-ai' || c.to === 'node-rag' || c.from === 'node-ai' || c.from === 'node-rag')) return;
                     if (!particles.some(p => p.from === c.from && p.to === c.to)) {
                         let pColor = '#34D399';
                         if (c.to === 'node-ai') pColor = '#F87171';
@@ -2385,6 +2544,7 @@ def render_process_visualization():
             function drawCables() {
                 // 1. Draw Connections (Equipment, AI, RAG)
                 connections.forEach(c => {
+                    if (currentViewId !== 'main' && (c.to === 'node-ai' || c.to === 'node-rag')) return;
                     const srcNode = nodesData.find(n => n.id === c.from);
                     if (!srcNode) return;
                     
@@ -2466,10 +2626,10 @@ def render_process_visualization():
                     }
                 }
 
-                // 3. Central Hub internal connections
+                // 3. Central Hub internal connections (Main view only)
                 const ragElem = document.getElementById('node-rag');
                 const aiElem = document.getElementById('node-ai');
-                if (ragElem && aiElem) {
+                if (currentViewId === 'main' && ragElem && aiElem) {
                     const ragR = ragElem.getBoundingClientRect();
                     const aiR = aiElem.getBoundingClientRect();
                     const cRect = document.getElementById('canvas-container').getBoundingClientRect();
@@ -2524,6 +2684,7 @@ def render_process_visualization():
                     }
 
                     if (p.to === 'node-ai' || p.to === 'node-rag') {
+                        if (currentViewId !== 'main') return;
                         const dstElem = document.getElementById(p.to);
                         const wc = getWorldCoords(dstElem);
                         if (wc) { dx = wc.x; dy = wc.y; }
@@ -2841,7 +3002,7 @@ def render_process_visualization():
                             lotBadge.className = lotClass;
                         }
                         lotBadge.title = '현재 가공 Lot: ' + node.currentLotId;
-                        lotBadge.textContent = '▶ ' + lotShort;
+                        lotBadge.textContent = '' + lotShort;
                     } else {
                         if (lotBadge) lotBadge.remove();
                     }
