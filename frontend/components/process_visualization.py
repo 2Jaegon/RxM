@@ -2683,10 +2683,12 @@ def render_process_visualization():
                                         let failMsgs = [];
                                         const fullRow = rawRows[ri];
                                         const timestamp = timeIdx >= 0 ? fullRow[timeIdx] : `Point_${ri}`;
-                                        const lotId = lotIdx >= 0 ? fullRow[lotIdx].trim() : 'LOT-20260812-B02';
-                                        const waferId = waferIdx >= 0 ? fullRow[waferIdx].trim() : '';
-                                        const lotDisplay = lotId;
                                         const phase = phaseIdx >= 0 ? fullRow[phaseIdx].trim() : 'DEFAULT';
+                                        const rawLotId = lotIdx >= 0 ? fullRow[lotIdx].trim() : '';
+                                        const isRowIdle = (phase === 'IDLE' || !rawLotId || rawLotId === '' || rawLotId === 'null' || rawLotId === 'NaN');
+                                        const lotId = isRowIdle ? '' : rawLotId;
+                                        const waferId = isRowIdle ? '' : (waferIdx >= 0 ? fullRow[waferIdx].trim() : '');
+                                        const lotDisplay = lotId;
                                         
                                         rowMeta.push({
                                             lotId: lotId,
@@ -2745,8 +2747,8 @@ def render_process_visualization():
                                     node._parsedStatusData = statuses;
                                     node._parsedFailDetails = failDetails;
                                     node._parsedRowMeta = rowMeta;
-                                    node.currentLotId = rowMeta.length > 0 ? rowMeta[0].lotId : null;
-                                    node.currentWaferId = rowMeta.length > 0 ? rowMeta[0].waferId : null;
+                                    node.currentLotId = (rowMeta.length > 0 && rowMeta[0].lotId) ? rowMeta[0].lotId : null;
+                                    node.currentWaferId = (rowMeta.length > 0 && rowMeta[0].waferId) ? rowMeta[0].waferId : null;
                                     node.failLogs = [];
                                     node.isAnomalous = false;
                                     node.hasActiveAlarm = false;
@@ -2851,9 +2853,11 @@ def render_process_visualization():
                         
                         if (rowMeta && rowMeta[currentRow]) {
                             const meta = rowMeta[currentRow];
-                            if (node.currentLotId !== meta.lotId || node.currentWaferId !== meta.waferId) {
-                                node.currentLotId = meta.lotId;
-                                node.currentWaferId = meta.waferId;
+                            const effLotId = (meta.lotId && meta.lotId !== '') ? meta.lotId : null;
+                            const effWaferId = (meta.waferId && meta.waferId !== '') ? meta.waferId : null;
+                            if (node.currentLotId !== effLotId || node.currentWaferId !== effWaferId) {
+                                node.currentLotId = effLotId;
+                                node.currentWaferId = effWaferId;
                                 anyChanged = true;
                             }
                         }
@@ -2944,7 +2948,8 @@ def render_process_visualization():
                             pointRadius: [],
                             pointBackgroundColor: [],
                             pointHoverRadius: 5,
-                            tension: 0.1
+                            tension: 0.3,
+                            spanGaps: false
                         });
                     }
                 });
@@ -3089,7 +3094,8 @@ def render_process_visualization():
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        animation: { duration: 100 },
+                        animation: false,
+                        spanGaps: false,
                         layout: {
                             padding: { bottom: 4 }
                         },
@@ -3136,14 +3142,16 @@ def render_process_visualization():
                     let failMessages = [];
                     let allDataStr = [];
                     
-                    const lotId = lotIndex >= 0 ? currentRowData[lotIndex].trim() : 'LOT-20260812-B02';
-                    const waferId = waferIndex >= 0 ? currentRowData[waferIndex].trim() : '';
+                    const rawLotId = lotIndex >= 0 ? currentRowData[lotIndex].trim() : '';
+                    const isStandby = (currentPhase === 'IDLE' || !rawLotId || rawLotId === '' || rawLotId === 'null' || rawLotId === 'NaN');
+                    const lotId = isStandby ? '' : rawLotId;
+                    const waferId = isStandby ? '' : (waferIndex >= 0 ? currentRowData[waferIndex].trim() : '');
                     const lotDisplay = lotId;
                     
                     // Check Status column if present in CSV
                     let isRowExplicitFail = false;
                     let explicitStatusVal = '';
-                    if (statusIndex >= 0 && currentRowData[statusIndex]) {
+                    if (!isStandby && statusIndex >= 0 && currentRowData[statusIndex]) {
                         explicitStatusVal = currentRowData[statusIndex].trim();
                         const sUpper = explicitStatusVal.toUpperCase();
                         if (sUpper && sUpper !== 'NORMAL' && sUpper !== 'STATUS' && sUpper !== 'OK' && sUpper !== 'IDLE' && sUpper !== '') {
@@ -3161,14 +3169,22 @@ def render_process_visualization():
                         const maxCell = document.getElementById(`sensor-max-${colIdx}`);
                         const valCell = document.getElementById(`sensor-val-${colIdx}`);
                         
-                        if (targetCell) targetCell.textContent = stat.target.toFixed(2);
-                        if (minCell) minCell.textContent = stat.min.toFixed(2);
-                        if (maxCell) maxCell.textContent = stat.max.toFixed(2);
-                        if (valCell) valCell.textContent = !isNaN(val) ? val.toFixed(2) : '-';
-                        
-                        allDataStr.push(`${statConfig.name}: ${!isNaN(val) ? val.toFixed(2) : '-'}`);
-                        if (!isNaN(val) && (val < stat.min || val > stat.max) && currentPhase !== 'RAMP' && currentPhase !== 'IDLE') {
-                            failMessages.push(`${statConfig.name} (${val.toFixed(2)} / ${stat.min.toFixed(2)}~${stat.max.toFixed(2)})`);
+                        if (isStandby) {
+                            if (targetCell) targetCell.textContent = '-';
+                            if (minCell) minCell.textContent = '-';
+                            if (maxCell) maxCell.textContent = '-';
+                            if (valCell) valCell.textContent = '- (대기중)';
+                            allDataStr.push(`${statConfig.name}: 대기중`);
+                        } else {
+                            if (targetCell) targetCell.textContent = stat.target.toFixed(2);
+                            if (minCell) minCell.textContent = stat.min.toFixed(2);
+                            if (maxCell) maxCell.textContent = stat.max.toFixed(2);
+                            if (valCell) valCell.textContent = !isNaN(val) ? val.toFixed(2) : '-';
+                            
+                            allDataStr.push(`${statConfig.name}: ${!isNaN(val) ? val.toFixed(2) : '-'}`);
+                            if (!isNaN(val) && (val < stat.min || val > stat.max) && currentPhase !== 'RAMP' && currentPhase !== 'IDLE') {
+                                failMessages.push(`${statConfig.name} (${val.toFixed(2)} / ${stat.min.toFixed(2)}~${stat.max.toFixed(2)})`);
+                            }
                         }
                     });
                     
@@ -3178,13 +3194,13 @@ def render_process_visualization():
                             failMessages.push(explicitStatusVal);
                         }
                     } else {
-                        hasFail = failMessages.length > 0;
+                        hasFail = !isStandby && failMessages.length > 0;
                     }
                     
                     const node = (viewsData[currentViewId]?.nodes || []).find(n => n.id === selectedNodeId);
                     if (node) {
-                        node.currentLotId = lotId;
-                        node.currentWaferId = waferId;
+                        node.currentLotId = lotId ? lotId : null;
+                        node.currentWaferId = waferId ? waferId : null;
                         if (hasFail) {
                             node.failLogs = node.failLogs || [];
                             if (window.lastFailTimestamp !== timestamp) {
@@ -3227,6 +3243,50 @@ def render_process_visualization():
                 
                 let lastRenderedRow = -1;
                 
+                function pushChartPoint(r) {
+                    const row = fullData[r];
+                    const timestamp = timeIndex >= 0 ? (row[timeIndex].includes(' ') ? row[timeIndex].split(' ')[1] : row[timeIndex]) : r.toString();
+                    const phaseRaw = phaseIndex >= 0 ? row[phaseIndex].trim() : 'DEFAULT';
+                    const phase = phaseShort[phaseRaw] || phaseRaw;
+                    const rawLotId = lotIndex >= 0 ? row[lotIndex].trim() : '';
+                    const isStandby = (phaseRaw === 'IDLE' || !rawLotId || rawLotId === '' || rawLotId === 'null' || rawLotId === 'NaN');
+                    
+                    sensorChart.data.labels.push(phase ? [timestamp, phase] : timestamp);
+                    if (sensorChart.data.labels.length > maxPoints) {
+                        sensorChart.data.labels.shift();
+                    }
+                    
+                    // Check if explicit fail
+                    let isFailRow = false;
+                    if (!isStandby && statusIndex >= 0 && row[statusIndex]) {
+                        const sUpper = row[statusIndex].trim().toUpperCase();
+                        if (sUpper && sUpper !== 'NORMAL' && sUpper !== 'STATUS' && sUpper !== 'OK' && sUpper !== 'IDLE' && sUpper !== '') {
+                            isFailRow = true;
+                        }
+                    }
+                    
+                    dataColIndices.forEach((colIdx, dsIdx) => {
+                        const ds = sensorChart.data.datasets[dsIdx];
+                        if (isStandby) {
+                            ds.data.push(null);
+                            ds.pointBackgroundColor.push('transparent');
+                            ds.pointRadius.push(0);
+                        } else {
+                            const rawVal = parseFloat(row[colIdx]);
+                            const val = !isNaN(rawVal) ? rawVal : null;
+                            ds.data.push(val);
+                            ds.pointBackgroundColor.push(isFailRow ? '#EF4444' : 'transparent');
+                            ds.pointRadius.push(isFailRow ? 5 : 2);
+                        }
+                        
+                        if (ds.data.length > maxPoints) {
+                            ds.data.shift();
+                            ds.pointBackgroundColor.shift();
+                            ds.pointRadius.shift();
+                        }
+                    });
+                }
+
                 streamInterval = setInterval(() => {
                     if (fullData.length === 0) return;
                     
@@ -3234,75 +3294,34 @@ def render_process_visualization():
                     const currentRow = Math.floor(elapsedMs / msPerPoint) % fullData.length;
                     
                     if (currentRow !== lastRenderedRow) {
-                        // Pre-fill history if this is the very first render after opening modal
-                        // Helper: compute 3-point moving avg anomaly for a dataset
-                        function isAnomalyPoint(dsData, val) {
-                            const win = dsData.slice(-2).concat([val]).filter(v => !isNaN(v));
-                            if (win.length < 2) return false;
-                            const avg = win.reduce((a, b) => a + b, 0) / win.length;
-                            const std = Math.sqrt(win.reduce((a, b) => a + (b - avg) ** 2, 0) / win.length);
-                            return std > 0 && Math.abs(val - avg) > 3 * std;
-                        }
-
                         if (lastRenderedRow === -1) {
                             const fillCount = Math.min(maxPoints, fullData.length);
                             for (let i = fillCount - 1; i >= 0; i--) {
                                 let r = (currentRow - i + fullData.length) % fullData.length;
-                                const row = fullData[r];
-                                const timestamp = timeIndex >= 0 ? (row[timeIndex].includes(' ') ? row[timeIndex].split(' ')[1] : row[timeIndex]) : r.toString();
-                                const phase = phaseIndex >= 0 ? (phaseShort[row[phaseIndex].trim()] || row[phaseIndex].trim()) : '';
-                                sensorChart.data.labels.push(phase ? [timestamp, phase] : timestamp);
-                                dataColIndices.forEach((colIdx, dsIdx) => {
-                                    const val = parseFloat(row[colIdx]);
-                                    const ds = sensorChart.data.datasets[dsIdx];
-                                    const anom = isAnomalyPoint(ds.data, val);
-                                    ds.data.push(val);
-                                    ds.pointBackgroundColor.push(anom ? '#EF4444' : 'transparent');
-                                    ds.pointRadius.push(anom ? 5 : 2);
-                                });
+                                pushChartPoint(r);
                             }
-                            sensorChart.update();
                             lastRenderedRow = currentRow;
-
-                            // Update real-time table
-                            const tstamp = timeIndex >= 0 ? fullData[currentRow][timeIndex] : currentRow.toString();
-                            const rPhase1 = phaseIndex >= 0 ? fullData[currentRow][phaseIndex].trim() : 'DEFAULT';
-                            updateRealTimeTable(fullData[currentRow], tstamp, rPhase1);
-                            return;
-                        }
-                        
-                        const row = fullData[currentRow];
-                        const timestamp = timeIndex >= 0 ? (row[timeIndex].includes(' ') ? row[timeIndex].split(' ')[1] : row[timeIndex]) : currentRow.toString();
-                        const phase = phaseIndex >= 0 ? (phaseShort[row[phaseIndex].trim()] || row[phaseIndex].trim()) : '';
-                        
-                        sensorChart.data.labels.push(phase ? [timestamp, phase] : timestamp);
-                        if (sensorChart.data.labels.length > maxPoints) {
-                            sensorChart.data.labels.shift();
-                        }
-                        
-                        dataColIndices.forEach((colIdx, dsIdx) => {
-                            const val = parseFloat(row[colIdx]);
-                            const ds = sensorChart.data.datasets[dsIdx];
-                            const anom = isAnomalyPoint(ds.data, val);
-                            ds.data.push(val);
-                            ds.pointBackgroundColor.push(anom ? '#EF4444' : 'transparent');
-                            ds.pointRadius.push(anom ? 5 : 2);
-                            if (ds.data.length > maxPoints) {
-                                ds.data.shift();
-                                ds.pointBackgroundColor.shift();
-                                ds.pointRadius.shift();
+                            sensorChart.update('none');
+                        } else {
+                            let pointsToAdd = (currentRow - lastRenderedRow + fullData.length) % fullData.length;
+                            if (pointsToAdd > maxPoints) pointsToAdd = maxPoints;
+                            
+                            if (pointsToAdd > 0) {
+                                for (let step = 1; step <= pointsToAdd; step++) {
+                                    let r = (lastRenderedRow + step) % fullData.length;
+                                    pushChartPoint(r);
+                                }
+                                lastRenderedRow = currentRow;
+                                sensorChart.update('none');
                             }
-                        });
-                        
-                        sensorChart.update();
-                        lastRenderedRow = currentRow;
+                        }
 
                         // Update real-time table
-                        const tstamp2 = timeIndex >= 0 ? fullData[currentRow][timeIndex] : currentRow.toString();
-                        const rPhase2 = phaseIndex >= 0 ? fullData[currentRow][phaseIndex].trim() : 'DEFAULT';
-                        updateRealTimeTable(fullData[currentRow], tstamp2, rPhase2);
+                        const tstamp = timeIndex >= 0 ? fullData[currentRow][timeIndex] : currentRow.toString();
+                        const rPhase = phaseIndex >= 0 ? fullData[currentRow][phaseIndex].trim() : 'DEFAULT';
+                        updateRealTimeTable(fullData[currentRow], tstamp, rPhase);
                     }
-                }, 100); // Fast poll to stay in perfect global sync
+                }, 50); // Fast poll to stay in perfect global sync
             }
 
             const csvInput = document.getElementById('sensor-csv-upload');
