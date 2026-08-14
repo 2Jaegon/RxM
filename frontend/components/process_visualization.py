@@ -1004,8 +1004,7 @@ def render_process_visualization():
                             <option value="LOT-20260812-C03">LOT-20260812-C03 (후기 가공 Lot)</option>
                         </select>
                     </div>
-                    <button class="modal-close-btn" onclick="closeModal('
-                    -trace-modal')">✕</button>
+                    <button class="modal-close-btn" onclick="closeModal('lot-trace-modal')">✕</button>
                 </div>
                 
                 <!-- Lot Summary Banner -->
@@ -1670,7 +1669,14 @@ def render_process_visualization():
                 if (modalId === 'edit-modal' && typeof clearChartState === 'function') {
                     clearChartState();
                 }
-                document.getElementById(modalId).style.display = 'none';
+                const elem = document.getElementById(modalId);
+                if (elem) elem.style.display = 'none';
+            }
+            function closeAllModals() {
+                ['add-modal', 'edit-modal', 'confirm-modal', 'lot-trace-modal'].forEach(mId => closeModal(mId));
+                const searchRes = document.getElementById('conn-search-results');
+                if (searchRes) searchRes.style.display = 'none';
+                wiringStartNodeId = null;
             }
             function closeModalOnOverlay(e, modalId) {
                 if (e.target.id === modalId) closeModal(modalId);
@@ -1713,7 +1719,26 @@ def render_process_visualization():
                 }
                 if (!logBody) return;
 
-                if (!node || !node.failLogs || node.failLogs.length === 0) {
+                const logs = node.failLogs || [];
+                const unresolvedLogs = logs.filter(l => l.status === 'UNRESOLVED');
+                if (countBadge) {
+                    if (unresolvedLogs.length > 0) {
+                        countBadge.className = 'fail-unresolved-badge';
+                        countBadge.innerText = `미조치 ${unresolvedLogs.length}건`;
+                    } else {
+                        countBadge.className = 'fail-unresolved-badge all-clear';
+                        countBadge.innerText = '정상 (0건)';
+                    }
+                }
+
+                // Stable DOM: Check if fail logs changed before touching DOM
+                const currentHash = logs.map(l => `${l.id}_${l.status}`).join('|');
+                if (node._renderedFailLogsHash === currentHash) {
+                    return; // Content unchanged, keep DOM completely stable!
+                }
+                node._renderedFailLogsHash = currentHash;
+
+                if (logs.length === 0) {
                     logBody.innerHTML = `
                         <tr>
                             <td colspan="5" style="padding: 14px; text-align: center; color: #94A3B8; font-size: 0.7rem;">
@@ -1721,26 +1746,11 @@ def render_process_visualization():
                             </td>
                         </tr>
                     `;
-                    if (countBadge) {
-                        countBadge.className = 'fail-unresolved-badge all-clear';
-                        countBadge.innerText = '정상 (0건)';
-                    }
                     return;
                 }
 
-                const unresolvedLogs = node.failLogs.filter(l => l.status === 'UNRESOLVED');
-                if (countBadge) {
-                    if (unresolvedLogs.length > 0) {
-                        countBadge.className = 'fail-unresolved-badge';
-                        countBadge.innerText = `미조치 ${unresolvedLogs.length}건`;
-                    } else {
-                        countBadge.className = 'fail-unresolved-badge all-clear';
-                        countBadge.innerText = '모든 조치 완료';
-                    }
-                }
-
                 let rowsHtml = '';
-                node.failLogs.forEach(log => {
+                logs.forEach(log => {
                     const isResolved = log.status === 'RESOLVED';
                     const targetLotId = log.lotId || 'LOT-20260812-B02';
                     const lotDisplay = log.lotDisplay || (log.lotId ? `${log.lotId}` : 'LOT-20260812-B02');
@@ -1750,7 +1760,7 @@ def render_process_visualization():
                                 ${log.timestamp}
                             </td>
                             <td style="padding: 6px 4px; white-space: nowrap; font-size: 0.65rem; color: #38BDF8; font-weight: 600;">
-                                <span class="lot-trace-link" onclick="openLotTraceModal('${targetLotId}')" title="클릭하여 ${targetLotId}의 35개 전 공정 이력 추적">
+                                <span class="lot-trace-link" data-lotid="${targetLotId}" onclick="openLotTraceModal('${targetLotId}')" title="클릭하여 ${targetLotId}의 35개 전 공정 이력 추적">
                                 ${lotDisplay}
                                 </span>
                             </td>
@@ -1763,7 +1773,7 @@ def render_process_visualization():
                             <td style="padding: 6px 4px; text-align: center; white-space: nowrap;">
                                 ${isResolved
                                     ? `<span class="badge-resolved" title="조치 완료 시각: ${log.resolvedAt || '-'}">✅ 조치 완료</span>`
-                                    : `<button type="button" class="btn-resolve-action" onclick="resolveSingleFailLog('${node.id}', '${log.id}')">🛠️ 조치 완료</button>`
+                                    : `<button type="button" class="btn-resolve-action" data-nodeid="${node.id}" data-logid="${log.id}" onclick="resolveSingleFailLog('${node.id}', '${log.id}')">🛠️ 조치 완료</button>`
                                 }
                             </td>
                         </tr>
@@ -1958,10 +1968,8 @@ def render_process_visualization():
             };
 
             window.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    closeModal('add-modal');
-                    closeModal('edit-modal');
-                    wiringStartNodeId = null;
+                if (e.key === 'Escape' || e.key === 'Esc') {
+                    closeAllModals();
                 }
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
                     e.preventDefault();
@@ -1970,6 +1978,11 @@ def render_process_visualization():
                 if ((e.key === '`' || e.code === 'Backquote') && currentViewId !== 'main') {
                     e.preventDefault();
                     navigateView('main');
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' || e.key === 'Esc') {
+                    closeAllModals();
                 }
             });
 
@@ -2866,7 +2879,7 @@ def render_process_visualization():
                         if (isRowAnomalous && failDetails && failDetails[currentRow]) {
                             const detail = failDetails[currentRow];
                             node.failLogs = node.failLogs || [];
-                            const exists = node.failLogs.some(l => l.rowIdx === currentRow || l.timestamp === detail.timestamp);
+                            const exists = node.failLogs.some(l => l.lotId === detail.lotId && l.status === 'UNRESOLVED');
                             if (!exists) {
                                 node.failLogs.unshift({
                                     id: 'fail_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
@@ -3203,30 +3216,27 @@ def render_process_visualization():
                         node.currentWaferId = waferId ? waferId : null;
                         if (hasFail) {
                             node.failLogs = node.failLogs || [];
-                            if (window.lastFailTimestamp !== timestamp) {
-                                window.lastFailTimestamp = timestamp;
-                                const exists = node.failLogs.some(l => l.timestamp === timestamp);
-                                if (!exists) {
-                                    node.failLogs.unshift({
-                                        id: 'fail_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-                                        timestamp: timestamp,
-                                        lotId: lotId,
-                                        waferId: waferId,
-                                        lotDisplay: lotDisplay,
-                                        failedParam: failMessages.join('<br>'),
-                                        allData: allDataStr.join(', '),
-                                        status: 'UNRESOLVED',
-                                        createdAt: new Date().toLocaleTimeString()
-                                    });
-                                    let stateChanged = false;
-                                    if (!node.isAnomalous || !node.hasActiveAlarm) {
-                                        node.isAnomalous = true;
-                                        node.hasActiveAlarm = true;
-                                        stateChanged = true;
-                                    }
-                                    if (stateChanged) renderNodes();
-                                    node.failLogsUpdated = true;
+                            const exists = node.failLogs.some(l => l.lotId === lotId && l.status === 'UNRESOLVED');
+                            if (!exists) {
+                                node.failLogs.unshift({
+                                    id: 'fail_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+                                    timestamp: timestamp,
+                                    lotId: lotId,
+                                    waferId: waferId,
+                                    lotDisplay: lotDisplay,
+                                    failedParam: failMessages.join('<br>'),
+                                    allData: allDataStr.join(', '),
+                                    status: 'UNRESOLVED',
+                                    createdAt: new Date().toLocaleTimeString()
+                                });
+                                let stateChanged = false;
+                                if (!node.isAnomalous || !node.hasActiveAlarm) {
+                                    node.isAnomalous = true;
+                                    node.hasActiveAlarm = true;
+                                    stateChanged = true;
                                 }
+                                if (stateChanged) patchNodes();
+                                node.failLogsUpdated = true;
                             }
                         }
                         if (node.failLogsUpdated) {
